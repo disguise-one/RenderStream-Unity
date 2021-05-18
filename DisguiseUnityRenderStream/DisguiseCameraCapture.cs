@@ -460,22 +460,33 @@ public class DisguiseCameraCapture : MonoBehaviour
         Vector2 lensShift = new Vector2(0.0f, 0.0f);
         if (m_newFrameData && m_cameraData.cameraHandle != 0)
         {
-            if (!m_camera.orthographic)
-                m_camera.usePhysicalProperties = true;
-            m_camera.sensorSize = new Vector2(m_cameraData.sensorX, m_cameraData.sensorY);
-            m_camera.focalLength = m_cameraData.focalLength;
-            m_camera.nearClipPlane = m_cameraData.nearZ;
-            m_camera.farClipPlane = m_cameraData.farZ;
-            cameraAspect = m_cameraData.sensorX / m_cameraData.sensorY;
-            lensShift = new Vector2(-m_cameraData.cx, m_cameraData.cy);
 
+            cameraAspect = m_cameraData.sensorX / m_cameraData.sensorY;
             transform.localPosition = new Vector3(m_cameraData.x, m_cameraData.y, m_cameraData.z);
             transform.localRotation = Quaternion.Euler(new Vector3(-m_cameraData.rx, m_cameraData.ry, -m_cameraData.rz));
+            m_camera.nearClipPlane = m_cameraData.nearZ;
+            m_camera.farClipPlane = m_cameraData.farZ;
+
+            if (m_cameraData.orthoWidth > 0.0f)  // Use an orthographic camera
+            {  
+                m_camera.orthographic = true;
+                m_camera.orthographicSize = 0.5f * m_cameraData.orthoWidth / cameraAspect;
+                transform.localPosition = new Vector3(m_cameraData.x, m_cameraData.y, m_cameraData.z);
+                transform.localRotation = Quaternion.Euler(new Vector3(-m_cameraData.rx, m_cameraData.ry, -m_cameraData.rz));
+            }
+            else  // Perspective projection, use camera lens properties
+            {
+                m_camera.usePhysicalProperties = true;
+                m_camera.sensorSize = new Vector2(m_cameraData.sensorX, m_cameraData.sensorY);
+                m_camera.focalLength = m_cameraData.focalLength;
+                lensShift = new Vector2(-m_cameraData.cx, m_cameraData.cy);
+            }
+
         }
         else if (m_frameSender != null)
         {
-          // By default aspect is resolution aspect. We need to undo the effect of the subregion on this to get the whole image aspect.
-          cameraAspect = m_camera.aspect * (m_frameSender.subRegion.height / m_frameSender.subRegion.width);
+            // By default aspect is resolution aspect. We need to undo the effect of the subregion on this to get the whole image aspect.
+            cameraAspect = m_camera.aspect * (m_frameSender.subRegion.height / m_frameSender.subRegion.width);
         }
 
         // Clip to correct subregion and calculate projection matrix
@@ -672,6 +683,7 @@ namespace Disguise.RenderStream
         public float sensorX, sensorY;
         public float cx, cy;
         public float nearZ, farZ;
+        public float orthoWidth;
 		public D3TrackingData d3Tracking;
     }
 
@@ -1325,7 +1337,7 @@ namespace Disguise.RenderStream
         const string _dllName = "d3renderstream";
 
         const int RENDER_STREAM_VERSION_MAJOR = 1;
-        const int RENDER_STREAM_VERSION_MINOR = 23;
+        const int RENDER_STREAM_VERSION_MINOR = 25;
 
         bool functionsLoaded = false;
         IntPtr d3RenderStreamDLL = IntPtr.Zero;
