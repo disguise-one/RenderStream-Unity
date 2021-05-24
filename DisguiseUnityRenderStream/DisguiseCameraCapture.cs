@@ -760,10 +760,21 @@ namespace Disguise.RenderStream
 
         RS_ERROR_INCOMPATIBLE_VERSION,
 
+        RS_ERROR_FAILED_TO_GET_DXDEVICE_FROM_RESOURCE,
+
+        RS_ERROR_FAILED_TO_INITIALISE_GPGPU,
+
         RS_ERROR_UNSPECIFIED
     }
-	
-	[StructLayout(LayoutKind.Sequential, Pack = 4)]
+
+    // Bitmask flags
+    public enum FRAMEDATA_FLAGS : UInt32
+    {
+        FRAMEDATA_NO_FLAGS = 0,
+        FRAMEDATA_RESET = 1
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct D3TrackingData
 	{
 		public float virtualZoomScale;
@@ -783,7 +794,7 @@ namespace Disguise.RenderStream
         public float sensorX, sensorY;
         public float cx, cy;
         public float nearZ, farZ;
-        public float orthoWidth;
+        public float orthoWidth;  // If > 0, an orthographic camera should be used
 		public D3TrackingData d3Tracking;
     }
 
@@ -1030,14 +1041,21 @@ namespace Disguise.RenderStream
         unsafe delegate void pUnregisterVerboseLoggingFunc();
 
         unsafe delegate RS_ERROR pInitialise(int expectedVersionMajor, int expectedVersionMinor);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithoutInterop(/*ID3D11Device**/ IntPtr device);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Device(/*ID3D11Device**/ IntPtr device);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Resource(/*ID3D11Resource**/ IntPtr resource);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithDX12DeviceAndQueue(/*ID3D12Device**/ IntPtr device, /*ID3D12CommandQueue**/ IntPtr queue);
         unsafe delegate RS_ERROR pShutdown();
 
         // non-isolated functions, these require init prior to use
+
         unsafe delegate RS_ERROR pSaveSchema(string assetPath, /*Schema**/ IntPtr schema); // Save schema for project file/custom executable at (assetPath)
         unsafe delegate RS_ERROR pLoadSchema(string assetPath, /*Out*/ /*Schema**/ IntPtr schema, /*InOut*/ ref UInt32 nBytes); // Load schema for project file/custom executable at (assetPath) into a buffer of size (nBytes) starting at (schema)
 
         // workload functions, these require the process to be running inside d3's asset launcher environment
+
         unsafe delegate RS_ERROR pSetSchema(/*InOut*/ /*Schema**/ IntPtr schema); // Set schema and fill in per-scene hash for use with rs_getFrameParameters
+
         unsafe delegate RS_ERROR pGetStreams(/*Out*/ /*StreamDescriptions**/ IntPtr streams, /*InOut*/ ref UInt32 nBytes); // Populate streams into a buffer of size (nBytes) starting at (streams)
 
         unsafe delegate RS_ERROR pAwaitFrameData(int timeoutMs, /*Out*/ /*FrameData**/ IntPtr data);  // waits for any asset, any stream to request a frame, provides the parameters for that frame.
@@ -1065,6 +1083,10 @@ namespace Disguise.RenderStream
         pUnregisterVerboseLoggingFunc m_unregisterVerboseLoggingFunc = null;
 
         pInitialise m_initialise = null;
+        pInitialiseGpGpuWithoutInterop m_initialiseGpGpuWithoutInterop = null;
+        pInitialiseGpGpuWithDX11Device m_initialiseGpGpuWithDX11Device = null;
+        pInitialiseGpGpuWithDX11Resource m_initialiseGpGpuWithDX11Resource = null;
+        pInitialiseGpGpuWithDX12DeviceAndQueue m_initialiseGpGpuWithDX12DeviceAndQueue = null;
         pShutdown m_shutdown = null;
 
         pSaveSchema m_saveSchema = null;
@@ -1644,6 +1666,10 @@ namespace Disguise.RenderStream
             m_unregisterVerboseLoggingFunc = DelegateBuilder<pUnregisterVerboseLoggingFunc>(d3RenderStreamDLL, "rs_unregisterVerboseLoggingFunc");
 
             m_initialise = DelegateBuilder<pInitialise>(d3RenderStreamDLL, "rs_initialise");
+            m_initialiseGpGpuWithoutInterop = DelegateBuilder<pInitialiseGpGpuWithoutInterop>(d3RenderStreamDLL, "rs_initialiseGpGpuWithoutInterop");
+            m_initialiseGpGpuWithDX11Device = DelegateBuilder<pInitialiseGpGpuWithDX11Device>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX11Device");
+            m_initialiseGpGpuWithDX11Resource = DelegateBuilder<pInitialiseGpGpuWithDX11Resource>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX11Resource");
+            m_initialiseGpGpuWithDX12DeviceAndQueue = DelegateBuilder<pInitialiseGpGpuWithDX12DeviceAndQueue>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX12DeviceAndQueue");
             m_shutdown = DelegateBuilder<pShutdown>(d3RenderStreamDLL, "rs_shutdown");
 
             m_saveSchema = DelegateBuilder<pSaveSchema>(d3RenderStreamDLL, "rs_saveSchema");
@@ -1672,7 +1698,9 @@ namespace Disguise.RenderStream
             m_sendProfilingData = DelegateBuilder<pSendProfilingData>(d3RenderStreamDLL, "rs_sendProfilingData");
             m_setNewStatusMessage = DelegateBuilder<pSetNewStatusMessage>(d3RenderStreamDLL, "rs_setNewStatusMessage");
 
-            if (m_initialise == null || m_shutdown == null || 
+            if (m_initialise == null || 
+                m_initialiseGpGpuWithoutInterop == null || m_initialiseGpGpuWithDX11Device == null || m_initialiseGpGpuWithDX11Resource == null || m_initialiseGpGpuWithDX12DeviceAndQueue == null ||
+                m_shutdown == null || 
                 m_saveSchema == null || m_loadSchema == null || 
                 m_setSchema == null || m_getStreams == null || 
                 m_sendFrame == null || m_awaitFrameData == null ||
@@ -1700,6 +1728,13 @@ namespace Disguise.RenderStream
                 Debug.LogError(string.Format("Unsupported RenderStream library, expected version {0}.{1}", RENDER_STREAM_VERSION_MAJOR, RENDER_STREAM_VERSION_MINOR));
             else if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 Debug.LogError(string.Format("Failed to initialise: {0}", error));
+            else
+            {
+                Texture2D texture = new Texture2D(1, 1);
+                error = m_initialiseGpGpuWithDX11Resource(texture.GetNativeTexturePtr());
+                if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                    Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
+            }
 
             name = GetProjectName();
 #else
