@@ -72,10 +72,10 @@ public class DisguiseRemoteParameters : MonoBehaviour
         }
     }
 
-    private static ManagedRemoteParameter createField(string group, string displayName_, string key_, RemoteParameterType type, string suffix, string undecoratedSuffix, float min, float max, float step, object defaultValue, string[] options)
+    private ManagedRemoteParameter createField(string group, string displayName_, string key_, RemoteParameterType type, string suffix, string undecoratedSuffix, float min, float max, float step, object defaultValue, string[] options)
     {
         string key = key_ + (String.IsNullOrEmpty(undecoratedSuffix) ? "" : "_" + undecoratedSuffix);
-        string displayName = displayName_ + (String.IsNullOrEmpty(suffix) ? "" : " " + suffix);
+        string displayName = exposedObject.name + " " + displayName_ + (String.IsNullOrEmpty(suffix) ? "" : " " + suffix);
 
         ManagedRemoteParameter parameter = new ManagedRemoteParameter();
         parameter.group = group;
