@@ -63,10 +63,10 @@ public class DisguiseRemoteParameters : MonoBehaviour
         }
     }
 
-    private static ManagedRemoteParameter createField(string group, UnityEditor.SerializedProperty property, string key_, string suffix, string undecoratedSuffix, float min, float max, float step, float defaultValue, string[] options)
+    private ManagedRemoteParameter createField(string group, UnityEditor.SerializedProperty property, string key_, string suffix, string undecoratedSuffix, float min, float max, float step, float defaultValue, string[] options)
     {
         string key = key_ + (String.IsNullOrEmpty(undecoratedSuffix) ? "" : "_" + undecoratedSuffix);
-        string displayName = property.displayName + (String.IsNullOrEmpty(suffix) ? "" : " " + suffix);
+        string displayName = exposedObject.name + " " + property.displayName + (String.IsNullOrEmpty(suffix) ? "" : " " + suffix);
 
         ManagedRemoteParameter parameter = new ManagedRemoteParameter();
         parameter.group = group;
