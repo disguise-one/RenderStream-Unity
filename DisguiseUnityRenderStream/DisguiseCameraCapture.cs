@@ -1489,23 +1489,29 @@ namespace Disguise.RenderStream
 
         static IntPtr LoadWin32Library(string dllFilePath)
         {
-            System.IntPtr moduleHandle = LoadLibraryEx(dllFilePath, IntPtr.Zero, LOAD_IGNORE_CODE_AUTHZ_LEVEL | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
+            System.IntPtr moduleHandle = IntPtr.Zero ;
+#if PLUGIN_AVAILABLE
+            moduleHandle = LoadLibraryEx(dllFilePath, IntPtr.Zero, LOAD_IGNORE_CODE_AUTHZ_LEVEL | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
             if (moduleHandle == IntPtr.Zero)
             {
                 // I'm gettin last dll error
                 int errorCode = Marshal.GetLastWin32Error();
                 Debug.LogError(string.Format("There was an error during dll loading : {0}, error - {1}", dllFilePath, errorCode));
             }
+#endif
             return moduleHandle;
         }
 
         static T DelegateBuilder<T>(IntPtr loadedDLL, string functionName) where T : Delegate
         {
-            IntPtr pAddressOfFunctionToCall = GetProcAddress(loadedDLL, functionName);
+            IntPtr pAddressOfFunctionToCall = IntPtr.Zero;
+#if PLUGIN_AVAILABLE
+            pAddressOfFunctionToCall = GetProcAddress(loadedDLL, functionName);
             if (pAddressOfFunctionToCall == IntPtr.Zero)
             {
                 return null;
             }
+#endif
             T functionDelegate = Marshal.GetDelegateForFunctionPointer(pAddressOfFunctionToCall, typeof(T)) as T;
             return functionDelegate;
         }
