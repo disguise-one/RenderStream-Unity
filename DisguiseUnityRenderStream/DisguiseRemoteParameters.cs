@@ -230,14 +230,20 @@ public class DisguiseRemoteParameters : MonoBehaviour
         {
             FieldInfo fieldInfo = currentType.GetField(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fieldInfo != null && !fieldInfo.IsInitOnly)
+            {
                 info = (MemberInfo)fieldInfo;
+                return info;
+            }
 
         }
         for (Type currentType = exposedObject.GetType(); info == null && currentType != null; currentType = currentType.BaseType)
         {
             PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (propertyInfo != null && propertyInfo.CanRead && propertyInfo.CanWrite)
+            {
                 info = (MemberInfo)propertyInfo;
+                return info;
+            }
         }
         return info;
     }
