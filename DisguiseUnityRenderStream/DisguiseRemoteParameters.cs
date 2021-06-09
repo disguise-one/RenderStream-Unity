@@ -317,6 +317,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         {
             FieldInfo fieldInfo = currentType.GetField(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fieldInfo != null && (!fieldInfo.IsInitOnly || fieldInfo.FieldType.IsSubclassOf(typeof(UnityEngine.Object))))
+            {
                 info = (MemberInfo)fieldInfo;
                 return info;
             }
