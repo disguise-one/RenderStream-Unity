@@ -318,6 +318,8 @@ public class DisguiseRemoteParameters : MonoBehaviour
             FieldInfo fieldInfo = currentType.GetField(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fieldInfo != null && (!fieldInfo.IsInitOnly || fieldInfo.FieldType.IsSubclassOf(typeof(UnityEngine.Object))))
                 info = (MemberInfo)fieldInfo;
+                return info;
+            }
 
         }
         for (Type currentType = exposedObject.GetType(); info == null && currentType != null; currentType = currentType.BaseType)
@@ -325,6 +327,8 @@ public class DisguiseRemoteParameters : MonoBehaviour
             PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (propertyInfo != null && propertyInfo.CanRead && (propertyInfo.CanWrite || propertyInfo.PropertyType.IsSubclassOf(typeof(UnityEngine.Object))))
                 info = (MemberInfo)propertyInfo;
+                return info;
+            }
         }
         return info;
     }

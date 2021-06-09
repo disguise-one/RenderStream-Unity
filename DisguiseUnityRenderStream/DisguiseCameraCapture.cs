@@ -70,7 +70,7 @@ class DisguiseRenderStream
                 Debug.Log("Processing scene: " + activeScene.name + " (" + activeScene.buildIndex + '/' + SceneManager.sceneCountInBuildSettings + ')');
 
                 HashSet<string> channels = new HashSet<string>(schema.channels);
-                channels.UnionWith(Camera.allCameras.Select(camera => camera.name));
+                channels.UnionWith(getTemplateCameras().Select(camera => camera.name));
                 schema.channels = channels.ToArray();
 
                 List<ManagedRemoteParameter> parameters = new List<ManagedRemoteParameter>();
@@ -88,7 +88,7 @@ class DisguiseRenderStream
                 Debug.Log("Processing scene: " + activeScene.name);
 
                 HashSet<string> channels = new HashSet<string>(schema.channels);
-                channels.UnionWith(Camera.allCameras.Select(camera => camera.name));
+                channels.UnionWith(getTemplateCameras().Select(camera => camera.name));
                 schema.channels = channels.ToArray();
 
                 if (schema.scenes[0] == null)
@@ -264,6 +264,10 @@ class DisguiseRenderStream
             UnityEngine.Object.Destroy(camera);
         cameras = new GameObject[streams.Length];
 
+        // cache the template cameras prior to instantiating our instance cameras 
+        Camera[] templateCameras = getTemplateCameras();
+        const int cullUIOnly = ~(1 << 5);
+
         for (int i = 0; i < streams.Length; ++i)
         {        
             StreamDescription stream = streams[i];
@@ -283,9 +287,11 @@ class DisguiseRenderStream
                 cameras[i] = new GameObject(stream.name);
                 cameras[i].AddComponent<Camera>();
             }
-
+            
             GameObject cameraObject = cameras[i];
             Camera camera = cameraObject.GetComponent<Camera>();
+            camera.enabled = true; // ensure the camera component is enable
+            camera.cullingMask &= cullUIOnly; // cull the UI so RenderStream and other error messages don't render to RenderStream outputs
             DisguiseCameraCapture capture = cameraObject.GetComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
             if (capture == null)
                 capture = cameraObject.AddComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
@@ -299,6 +305,13 @@ class DisguiseRenderStream
             captureAfterPostProcess.height.value = (Int32)stream.height;
 #endif
             camera.enabled = true;
+        }
+
+        // stop template cameras impacting performance
+        foreach (var templateCam in templateCameras)
+        {
+            templateCam.enabled = false; // disable the camera component on the template camera so these cameras won't render and impact performance
+            // we don't want to disable the game object otherwise we won't be able to find the object again to instantiate instance cameras if we get a streams changed event
         }
 
         frameData = new FrameData();
@@ -466,11 +479,16 @@ class DisguiseRenderStream
         }
     }
 
+    static Camera[] getTemplateCameras()
+    {
+        return Camera.allCameras;
+    }
+
     static Camera GetChannelCamera(string channel)
     {
         try
         {
-            return Array.Find(Camera.allCameras, camera => camera.name == channel);
+            return Array.Find(getTemplateCameras(), camera => camera.name == channel);
         }
         catch (ArgumentNullException)
         {
@@ -1759,23 +1777,29 @@ namespace Disguise.RenderStream
 
         static IntPtr LoadWin32Library(string dllFilePath)
         {
-            System.IntPtr moduleHandle = LoadLibraryEx(dllFilePath, IntPtr.Zero, LOAD_IGNORE_CODE_AUTHZ_LEVEL | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
+            System.IntPtr moduleHandle = IntPtr.Zero ;
+#if PLUGIN_AVAILABLE
+            moduleHandle = LoadLibraryEx(dllFilePath, IntPtr.Zero, LOAD_IGNORE_CODE_AUTHZ_LEVEL | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
             if (moduleHandle == IntPtr.Zero)
             {
                 // I'm gettin last dll error
                 int errorCode = Marshal.GetLastWin32Error();
                 Debug.LogError(string.Format("There was an error during dll loading : {0}, error - {1}", dllFilePath, errorCode));
             }
+#endif
             return moduleHandle;
         }
 
         static T DelegateBuilder<T>(IntPtr loadedDLL, string functionName) where T : Delegate
         {
-            IntPtr pAddressOfFunctionToCall = GetProcAddress(loadedDLL, functionName);
+            IntPtr pAddressOfFunctionToCall = IntPtr.Zero;
+#if PLUGIN_AVAILABLE
+            pAddressOfFunctionToCall = GetProcAddress(loadedDLL, functionName);
             if (pAddressOfFunctionToCall == IntPtr.Zero)
             {
                 return null;
             }
+#endif
             T functionDelegate = Marshal.GetDelegateForFunctionPointer(pAddressOfFunctionToCall, typeof(T)) as T;
             return functionDelegate;
         }
