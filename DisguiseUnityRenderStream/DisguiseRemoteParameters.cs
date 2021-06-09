@@ -17,13 +17,15 @@ public class DisguiseRemoteParameters : MonoBehaviour
     [System.Serializable]
     public struct ExposedField
     {
-        public ExposedField(bool exposed_, string fieldName_) 
+        public ExposedField(bool exposed_, string fieldName_, string groupName_) 
         {
             exposed = exposed_;
             fieldName = fieldName_;
+            groupName = groupName_;
         }
         public bool exposed;
         public string fieldName;
+        public string groupName;
     }
     [HideInInspector]
     public List<ExposedField> fields;
@@ -68,7 +70,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         foreach (string displayName in displayNames)
         {
             if (!fields.Any(field => field.fieldName == displayName))
-                fields.Add(new ExposedField(true, displayName));
+                fields.Add(new ExposedField(true, displayName, ""));
         }
     }
 
@@ -97,6 +99,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         List<ManagedRemoteParameter> parameters = new List<ManagedRemoteParameter>();
         if (exposedObject == null)
             return parameters;
+        string group = "Properties";
         if (exposedObject is Material material)
         {
             if (material.mainTexture is RenderTexture)
@@ -107,7 +110,11 @@ public class DisguiseRemoteParameters : MonoBehaviour
                 }
                 else if (fields.Any(field => field.exposed && field.fieldName == "Main texture"))
                 {
-                    parameters.Add(createField("", "Main texture", prefix + " " + "mainTexture", RemoteParameterType.RS_PARAMETER_IMAGE, "", "", 0, 255, 1, 0, new string[0]));
+                    if (!string.IsNullOrEmpty(fields.FirstOrDefault(field => field.fieldName == "Main texture").groupName))
+                    {
+                        group = fields.FirstOrDefault(field => field.fieldName == "Main texture").groupName;
+                    }
+                    parameters.Add(createField(group, "Main texture", prefix + " " + "mainTexture", RemoteParameterType.RS_PARAMETER_IMAGE, "", "", 0, 255, 1, 0, new string[0]));
                 }
             }
         }
@@ -121,7 +128,11 @@ public class DisguiseRemoteParameters : MonoBehaviour
                 }
                 else if (fields.Any(field => field.exposed && field.fieldName == "Transform"))
                 {
-                    parameters.Add(createField("", "Transform", prefix + " " + "transform", RemoteParameterType.RS_PARAMETER_TRANSFORM, "", "", 0, 255, 1, 0, new string[0]));
+                    if (!string.IsNullOrEmpty(fields.FirstOrDefault(field => field.fieldName == "Transform").groupName))
+                    {
+                        group = fields.FirstOrDefault(field => field.fieldName == "Transform").groupName;
+                    }
+                    parameters.Add(createField(group, "Transform", prefix + " " + "transform", RemoteParameterType.RS_PARAMETER_TRANSFORM, "", "", 0, 255, 1, 0, new string[0]));
                 }
             }
         }
@@ -152,7 +163,11 @@ public class DisguiseRemoteParameters : MonoBehaviour
                 MinAttribute min = info != null ? info.GetCustomAttributes(typeof(MinAttribute), true).FirstOrDefault() as MinAttribute : null;
                 if (header != null)
                     nesting.Push(header.header);
-                string group = String.Join(" ", new Stack<String>(nesting).ToArray());
+                group = "Properties";
+                if (fields.Any(field => field.exposed && field.fieldName == property.displayName && !string.IsNullOrEmpty(field.groupName)))
+                {
+                    group = fields.FirstOrDefault(field => field.fieldName == property.displayName).groupName;
+                }
                 if (fields.Any(field => !field.exposed && field.fieldName == property.displayName))
                 {
                     //Debug.Log("Unexposed property: " + property.displayName);
