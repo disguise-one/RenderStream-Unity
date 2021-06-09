@@ -100,12 +100,30 @@ public class DisguiseRemoteParameters : MonoBehaviour
         if (exposedObject is Material material)
         {
             if (material.mainTexture is RenderTexture)
-                parameters.Add(createField("", "Main texture", prefix + " " + "mainTexture", RemoteParameterType.RS_PARAMETER_IMAGE, "", "", 0, 255, 1, 0, new string[0]));
+            {
+                if (fields.Any(field => !field.exposed && field.fieldName == "Main texture"))
+                {
+                    //Debug.Log("Unexposed property: Main texture");
+                }
+                else if (fields.Any(field => field.exposed && field.fieldName == "Main texture"))
+                {
+                    parameters.Add(createField("", "Main texture", prefix + " " + "mainTexture", RemoteParameterType.RS_PARAMETER_IMAGE, "", "", 0, 255, 1, 0, new string[0]));
+                }
+            }
         }
         else if (exposedObject is Transform transform)
         {
             if (System.Object.ReferenceEquals(transform.transform, transform))
-                parameters.Add(createField("", "Transform", prefix + " " + "transform", RemoteParameterType.RS_PARAMETER_TRANSFORM, "", "", 0, 255, 1, 0, new string[0]));
+            {
+                if (fields.Any(field => !field.exposed && field.fieldName == "Transform"))
+                {
+                    //Debug.Log("Unexposed property: Transform");
+                }
+                else if (fields.Any(field => field.exposed && field.fieldName == "Transform"))
+                {
+                    parameters.Add(createField("", "Transform", prefix + " " + "transform", RemoteParameterType.RS_PARAMETER_TRANSFORM, "", "", 0, 255, 1, 0, new string[0]));
+                }
+            }
         }
         UnityEditor.SerializedObject so = new UnityEditor.SerializedObject(exposedObject);
         UnityEditor.SerializedProperty property = so.GetIterator();
