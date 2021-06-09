@@ -326,6 +326,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         {
             PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (propertyInfo != null && propertyInfo.CanRead && (propertyInfo.CanWrite || propertyInfo.PropertyType.IsSubclassOf(typeof(UnityEngine.Object))))
+            {
                 info = (MemberInfo)propertyInfo;
                 return info;
             }
