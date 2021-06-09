@@ -260,8 +260,7 @@ class DisguiseRenderStream
 
         // cache the template cameras prior to instantiating our instance cameras 
         Camera[] templateCameras = getTemplateCameras();
-        const int everythingCullingMask = -1; // render everything
-        const int nothingCullingMask = 0; // render nothing
+        const int cullUIOnly = ~(1 << 5);
 
         for (int i = 0; i < streams.Length; ++i)
         {        
@@ -285,7 +284,8 @@ class DisguiseRenderStream
             
             GameObject cameraObject = cameras[i];
             Camera camera = cameraObject.GetComponent<Camera>();
-            camera.cullingMask = everythingCullingMask; // set the instance camera to cull nothing
+            camera.enabled = true; // ensure the camera component is enable
+            camera.cullingMask &= cullUIOnly; // cull the UI so RenderStream and other error messages don't render to RenderStream outputs
             DisguiseCameraCapture capture = cameraObject.GetComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
             if (capture == null)
                 capture = cameraObject.AddComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
@@ -295,7 +295,7 @@ class DisguiseRenderStream
         // stop template cameras impacting performance
         foreach (var templateCam in templateCameras)
         {
-            templateCam.cullingMask = nothingCullingMask; // set the template camera to cull everything so it doesn't impact performance
+            templateCam.enabled = false; // disable the camera component on the template camera so these cameras won't render and impact performance
             // we don't want to disable the game object otherwise we won't be able to find the object again to instantiate instance cameras if we get a streams changed event
         }
 
