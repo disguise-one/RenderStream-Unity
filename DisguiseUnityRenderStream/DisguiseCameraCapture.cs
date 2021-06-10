@@ -252,12 +252,21 @@ class DisguiseRenderStream
             return;
         }
 
-        RS_ERROR error = PluginEntry.instance.getStreams(ref streams);
-        if (error != RS_ERROR.RS_ERROR_SUCCESS)
+        do
         {
-            Debug.LogError(string.Format("DisguiseRenderStream: Failed to get streams {0}", error));
-            return;
-        }
+            RS_ERROR error = PluginEntry.instance.getStreams(ref streams);
+            if (error != RS_ERROR.RS_ERROR_SUCCESS)
+            {
+                Debug.LogError(string.Format("DisguiseRenderStream: Failed to get streams {0}", error));
+                return;
+            }
+
+            if (streams.Length == 0)
+            {
+                Debug.Log("Waiting for streams...");
+                Thread.Sleep(1000);
+            }
+        } while (streams.Length == 0);
 
         Debug.Log(string.Format("Found {0} streams", streams.Length));
         foreach (var camera in cameras)
