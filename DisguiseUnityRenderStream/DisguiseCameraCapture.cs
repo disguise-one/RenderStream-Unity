@@ -304,15 +304,16 @@ class DisguiseRenderStream
             DisguiseCameraCapture capture = cameraObject.GetComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
             if (capture == null)
                 capture = cameraObject.AddComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
-#if UNITY_PIPELINE_HDRP
-            Volume volume = cameraObject.GetComponent<Volume>();
-            if (volume == null)
-                volume = cameraObject.AddComponent<Volume>();
-            volume.profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            var captureAfterPostProcess = volume.profile.Add<DisguiseCameraCaptureAfterPostProcess>(true);
-            captureAfterPostProcess.width.value = (Int32)stream.width;
-            captureAfterPostProcess.height.value = (Int32)stream.height;
-#endif
+// Blocks HDRP streams in r18.2
+// #if UNITY_PIPELINE_HDRP
+//             Volume volume = cameraObject.GetComponent<Volume>();
+//             if (volume == null)
+//                 volume = cameraObject.AddComponent<Volume>();
+//             volume.profile = ScriptableObject.CreateInstance<VolumeProfile>();
+//             var captureAfterPostProcess = volume.profile.Add<DisguiseCameraCaptureAfterPostProcess>(true);
+//             captureAfterPostProcess.width.value = (Int32)stream.width;
+//             captureAfterPostProcess.height.value = (Int32)stream.height;
+// #endif
             camera.enabled = true;
         }
 
@@ -1881,26 +1882,27 @@ namespace Disguise.RenderStream
 
             m_responseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
 
-#if UNITY_PIPELINE_HDRP
-            Volume volume = Cam.GetComponent<Volume>();
-            if (!volume.profile)
-                Debug.Log("Missing profile");
+// Blocks HDRP streams in r18.2
+// #if UNITY_PIPELINE_HDRP
+//             Volume volume = Cam.GetComponent<Volume>();
+//             if (!volume.profile)
+//                 Debug.Log("Missing profile");
 
-            if (!volume.profile.TryGet<DisguiseCameraCaptureAfterPostProcess>(out m_captureAfterPostProcess))
-            {
-                Debug.Log("Missing captureAfterPostProcess");
-                m_captureAfterPostProcess = volume.profile.Add<DisguiseCameraCaptureAfterPostProcess>(true);
-            }
-            m_captureAfterPostProcess.width.value = (Int32)m_width;
-            m_captureAfterPostProcess.height.value = (Int32)m_height;
-#else
+//             if (!volume.profile.TryGet<DisguiseCameraCaptureAfterPostProcess>(out m_captureAfterPostProcess))
+//             {
+//                 Debug.Log("Missing captureAfterPostProcess");
+//                 m_captureAfterPostProcess = volume.profile.Add<DisguiseCameraCaptureAfterPostProcess>(true);
+//             }
+//             m_captureAfterPostProcess.width.value = (Int32)m_width;
+//             m_captureAfterPostProcess.height.value = (Int32)m_height;
+// #else
             RenderTexture unflipped = RenderTexture.GetTemporary(m_sourceTex.width, m_sourceTex.height, 0, m_sourceTex.format);
             Graphics.Blit(m_sourceTex, unflipped, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
             Graphics.ConvertTexture(unflipped, m_convertedTex);
             RenderTexture.ReleaseTemporary(unflipped);
 
             SendFrame(m_convertedTex);
-#endif
+// #endif
         }
 
         public void DestroyStream()
@@ -1927,10 +1929,11 @@ namespace Disguise.RenderStream
             {
                 return m_frameRegion;
             }
-        }        
-#if UNITY_PIPELINE_HDRP
-        private DisguiseCameraCaptureAfterPostProcess m_captureAfterPostProcess;
-#endif
+        }       
+// Blocks HDRP streams in r18.2 
+// #if UNITY_PIPELINE_HDRP
+//         private DisguiseCameraCaptureAfterPostProcess m_captureAfterPostProcess;
+// #endif
     }
 
 }
