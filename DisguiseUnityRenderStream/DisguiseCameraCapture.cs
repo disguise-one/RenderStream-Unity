@@ -746,6 +746,8 @@ namespace Disguise.RenderStream
         //RS_FMT_BGRA16F,
 
         RS_FMT_RGBA32F,
+
+        RS_FMT_RGBA16,
     }
 
     public enum SenderFrameType : UInt32
@@ -1044,6 +1046,7 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_BGRA8: return TextureFormat.BGRA32;
                 case RSPixelFormat.RS_FMT_BGRX8: return TextureFormat.BGRA32;
                 case RSPixelFormat.RS_FMT_RGBA32F: return TextureFormat.RGBAFloat;
+                case RSPixelFormat.RS_FMT_RGBA16: return TextureFormat.RGBAFloat;
                 default: return TextureFormat.BGRA32;
             }
         }
@@ -1055,6 +1058,7 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGB64;
                 default: return RenderTextureFormat.ARGBFloat;
             }
         }
