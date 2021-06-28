@@ -448,7 +448,7 @@ class DisguiseRenderStream
                         while (scratchTextures.Count < imageData.Length)
                         {
                             int index = scratchTextures.Count;
-                            scratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, false));
+                            scratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
                         }
                         uint i = 0;
                         foreach (var field in fields.images)
@@ -458,7 +458,7 @@ class DisguiseRenderStream
                                 Texture2D texture = scratchTextures[(int)i];
                                 if (texture.width != imageData[i].width || texture.height != imageData[i].height || texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
                                 {
-                                    scratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, false);
+                                    scratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, true);
                                     texture = scratchTextures[(int)i];
                                 }
                                 if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
