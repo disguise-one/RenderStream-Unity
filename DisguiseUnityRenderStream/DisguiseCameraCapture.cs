@@ -1605,13 +1605,32 @@ namespace Disguise.RenderStream
 
         private void free()
         {
-            RS_ERROR error;
-            error = m_shutdown();
-            if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                Debug.LogError(string.Format("Failed to shutdown: {0}", error));
+            if (functionsLoaded)
+            {
+                if (m_logToD3 != null)
+                    Application.logMessageReceivedThreaded -= logToD3;
+
+                if (m_unregisterErrorLoggingFunc != null)
+                    m_unregisterErrorLoggingFunc();
+                if (m_unregisterLoggingFunc != null)
+                    m_unregisterLoggingFunc();
+
+                RS_ERROR error = m_shutdown();
+                if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                    Debug.LogError(string.Format("Failed to shutdown: {0}", error));
+                functionsLoaded = false;
+                Debug.Log("Shut down RenderStream");
+            }
 
             if (d3RenderStreamDLL != IntPtr.Zero)
+            {
                 FreeLibrary(d3RenderStreamDLL);
+                d3RenderStreamDLL = IntPtr.Zero;
+                Debug.Log("Unloaded RenderStream");
+            }
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
         }
 
         public bool IsAvailable
@@ -1768,6 +1787,12 @@ namespace Disguise.RenderStream
                     Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
             }
 
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.quitting += free;
+#else
+            Application.quitting += free;
+#endif
+
             name = GetProjectName();
 #else
             Debug.LogError(string.Format("{0}.dll is only available on Windows", _dllName));
@@ -1776,16 +1801,6 @@ namespace Disguise.RenderStream
 
         ~PluginEntry()
         {
-            if (m_logToD3 != null)
-                Application.logMessageReceivedThreaded -= logToD3;
-
-            if (m_unregisterErrorLoggingFunc != null)
-                m_unregisterErrorLoggingFunc();
-            if (m_unregisterLoggingFunc != null)
-                m_unregisterLoggingFunc();
-
-            if (handleReference.IsAllocated)
-                handleReference.Free();
             free();
         }
 
