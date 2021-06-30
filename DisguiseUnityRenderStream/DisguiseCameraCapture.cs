@@ -55,6 +55,9 @@ class DisguiseRenderStream
     [UnityEditor.Callbacks.PostProcessSceneAttribute(0)]
     static void OnPostProcessScene()
     {
+        if (!UnityEditor.BuildPipeline.isBuildingPlayer)
+            return;
+
         Scene activeScene = SceneManager.GetActiveScene();
         DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();            
         switch (settings.sceneControl)
@@ -133,6 +136,12 @@ class DisguiseRenderStream
     [RuntimeInitializeOnLoadMethod]
     static void OnLoad()
     {
+        if (Application.isEditor)
+        {
+            // No play in editor support currently
+            return;
+        }
+
         if (PluginEntry.instance.IsAvailable == false)
         {
             Debug.LogError("DisguiseRenderStream: RenderStream DLL not available");
