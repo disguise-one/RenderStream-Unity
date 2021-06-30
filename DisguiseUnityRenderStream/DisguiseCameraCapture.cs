@@ -1614,6 +1614,13 @@ namespace Disguise.RenderStream
 
         private void free()
         {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.quitting -= free;
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= free;
+#else
+            Application.quitting -= free;
+#endif
+
             if (functionsLoaded)
             {
                 if (m_logToD3 != null)
@@ -1796,8 +1803,11 @@ namespace Disguise.RenderStream
                     Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
             }
 
+            Debug.Log("Loaded RenderStream");
+
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.quitting += free;
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += free;
 #else
             Application.quitting += free;
 #endif
