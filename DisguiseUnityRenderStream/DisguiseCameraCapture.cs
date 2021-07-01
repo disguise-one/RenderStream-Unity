@@ -767,6 +767,12 @@ namespace Disguise.RenderStream
         RS_FRAMETYPE_UNKNOWN
     }
 
+    public enum UseDX12SharedHeapFlag : UInt32
+    {
+        RS_DX12_USE_SHARED_HEAP_FLAG,
+        RS_DX12_DO_NOT_USE_SHARED_HEAP_FLAG
+    }
+
     public enum RS_ERROR : UInt32
     {
         RS_ERROR_SUCCESS = 0,
@@ -870,10 +876,6 @@ namespace Disguise.RenderStream
         // struct Dx12Data
         [FieldOffset(0)]
         public /*struct ID3D12Resource**/ IntPtr dx12_resource;
-        [FieldOffset(8)]
-        public /*struct ID3D12Fence**/ IntPtr dx12_fence;
-        [FieldOffset(16)]
-        public Int32 dx12_fenceValue;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -1090,6 +1092,7 @@ namespace Disguise.RenderStream
 
         // non-isolated functions, these require init prior to use
 
+        unsafe delegate RS_ERROR pUseDX12SharedHeapFlag(ref UseDX12SharedHeapFlag flag);
         unsafe delegate RS_ERROR pSaveSchema(string assetPath, /*Schema**/ IntPtr schema); // Save schema for project file/custom executable at (assetPath)
         unsafe delegate RS_ERROR pLoadSchema(string assetPath, /*Out*/ /*Schema**/ IntPtr schema, /*InOut*/ ref UInt32 nBytes); // Load schema for project file/custom executable at (assetPath) into a buffer of size (nBytes) starting at (schema)
 
@@ -1130,6 +1133,7 @@ namespace Disguise.RenderStream
         pInitialiseGpGpuWithDX12DeviceAndQueue m_initialiseGpGpuWithDX12DeviceAndQueue = null;
         pShutdown m_shutdown = null;
 
+        pUseDX12SharedHeapFlag m_useDX12SharedHeapFlag = null;
         pSaveSchema m_saveSchema = null;
         pLoadSchema m_loadSchema = null;
 
@@ -1671,7 +1675,7 @@ namespace Disguise.RenderStream
         const string _dllName = "d3renderstream";
 
         const int RENDER_STREAM_VERSION_MAJOR = 1;
-        const int RENDER_STREAM_VERSION_MINOR = 26;
+        const int RENDER_STREAM_VERSION_MINOR = 27;
 
         bool functionsLoaded = false;
         IntPtr d3RenderStreamDLL = IntPtr.Zero;
@@ -1739,6 +1743,7 @@ namespace Disguise.RenderStream
             m_initialiseGpGpuWithDX12DeviceAndQueue = DelegateBuilder<pInitialiseGpGpuWithDX12DeviceAndQueue>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX12DeviceAndQueue");
             m_shutdown = DelegateBuilder<pShutdown>(d3RenderStreamDLL, "rs_shutdown");
 
+            m_useDX12SharedHeapFlag = DelegateBuilder<pUseDX12SharedHeapFlag>(d3RenderStreamDLL, "rs_useDX12SharedHeapFlag");
             m_saveSchema = DelegateBuilder<pSaveSchema>(d3RenderStreamDLL, "rs_saveSchema");
             m_loadSchema = DelegateBuilder<pLoadSchema>(d3RenderStreamDLL, "rs_loadSchema");
 
