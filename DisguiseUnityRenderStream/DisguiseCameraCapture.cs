@@ -1069,7 +1069,7 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGB64;
+                case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGBFloat;
                 default: return RenderTextureFormat.ARGBFloat;
             }
         }
