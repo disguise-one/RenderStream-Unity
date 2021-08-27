@@ -5,6 +5,8 @@ using Disguise.RenderStream;
 [CustomEditor(typeof(DisguiseRemoteParameters))]
 public class DisguiseRemoteParametersEditor : Editor
 {
+    private SerializedProperty _fieldsProp;
+
     public override void OnInspectorGUI()
     {
         base.OnInspectorGUI();
@@ -13,12 +15,31 @@ public class DisguiseRemoteParametersEditor : Editor
 
         ReorderableListUtility.DoLayoutListWithFoldout(list);
 
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Select All"))
+        {
+            for (int i = 0; i < _fieldsProp.arraySize; i++)
+            {
+                var element = _fieldsProp.GetArrayElementAtIndex(i);
+                element.FindPropertyRelative("exposed").boolValue = true;
+            }
+        }
+        if (GUILayout.Button("Select None"))
+        {
+            for (int i = 0; i < _fieldsProp.arraySize; i++)
+            {
+                var element = _fieldsProp.GetArrayElementAtIndex(i);
+                element.FindPropertyRelative("exposed").boolValue = false;
+            }
+        }
+        GUILayout.EndHorizontal();
+
         serializedObject.ApplyModifiedProperties();
     }
 
     private void OnEnable()
     {
-        SerializedProperty property = this.serializedObject.FindProperty("fields");
+        _fieldsProp = this.serializedObject.FindProperty("fields");
         list = ReorderableListUtility.CreateAutoLayout(property);
     }
 
