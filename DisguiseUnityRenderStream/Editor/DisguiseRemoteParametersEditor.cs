@@ -39,7 +39,7 @@ public class DisguiseRemoteParametersEditor : Editor
 
     private void OnEnable()
     {
-        _fieldsProp = this.serializedObject.FindProperty("fields");
+        _fieldsProp = this.serializedObject.FindProperty("fields", true, true, false, false);
         list = ReorderableListUtility.CreateAutoLayout(property);
     }
 
