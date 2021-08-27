@@ -1,26 +1,48 @@
-﻿using UnityEditor;
-using UnityEditorInternal;
-using Disguise.RenderStream;
+﻿    using UnityEngine;
+    using UnityEditor;
+    using UnityEditorInternal;
+    using Disguise.RenderStream;
 
-[CustomEditor(typeof(DisguiseRemoteParameters))]
-public class DisguiseRemoteParametersEditor : Editor
-{
-    public override void OnInspectorGUI()
+    [CustomEditor(typeof(DisguiseRemoteParameters))]
+    public class DisguiseRemoteParametersEditor : Editor
     {
-        base.OnInspectorGUI();
+        private SerializedProperty _fieldsProp;
 
-        serializedObject.Update();
+        public override void OnInspectorGUI()
+        {
+            base.OnInspectorGUI();
 
-        ReorderableListUtility.DoLayoutListWithFoldout(list);
+            serializedObject.Update();
 
-        serializedObject.ApplyModifiedProperties();
+            ReorderableListUtility.DoLayoutListWithFoldout(list);
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Select All"))
+            {
+                for (int i = 0; i < _fieldsProp.arraySize; i++)
+			    {
+                    var element = _fieldsProp.GetArrayElementAtIndex(i);
+                    element.FindPropertyRelative("exposed").boolValue = true;
+                }
+            }
+            if (GUILayout.Button("Select None"))
+            {
+                for (int i = 0; i < _fieldsProp.arraySize; i++)
+                {
+                    var element = _fieldsProp.GetArrayElementAtIndex(i);
+                    element.FindPropertyRelative("exposed").boolValue = false;
+                }
+            }
+            GUILayout.EndHorizontal();
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private void OnEnable()
+        {
+            _fieldsProp = this.serializedObject.FindProperty("fields");
+            list = ReorderableListUtility.CreateAutoLayout(_fieldsProp, true, true, false, false);
+        }
+
+        private ReorderableList list;
     }
-
-    private void OnEnable()
-    {
-        SerializedProperty property = this.serializedObject.FindProperty("fields");
-        list = ReorderableListUtility.CreateAutoLayout(property);
-    }
-
-    private ReorderableList list;
-}
