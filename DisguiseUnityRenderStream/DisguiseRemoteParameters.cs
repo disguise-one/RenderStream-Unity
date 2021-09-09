@@ -91,7 +91,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         parameter.defaultValue = defaultValue;
         parameter.options = options;
         parameter.dmxOffset = -1;
-        parameter.dmxType = 2;
+        parameter.dmxType = RemoteParameterDmxType.RS_DMX_16_BE;
         return parameter;
     }
 

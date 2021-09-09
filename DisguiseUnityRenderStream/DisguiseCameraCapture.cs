@@ -348,6 +348,8 @@ class DisguiseRenderStream
         {
             yield return new WaitForEndOfFrame();
             RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
+            if (error == RS_ERROR.RS_ERROR_QUIT)
+                Application.Quit();
             if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
                 CreateStreams();
             switch (settings.sceneControl)
@@ -748,15 +750,12 @@ namespace Disguise.RenderStream
         RS_FMT_BGRA8,
         RS_FMT_BGRX8,
 
-        //RS_FMT_RGB10X2,
-        //RS_FMT_BGR10X2,
-
-        //RS_FMT_RGBA16F,
-        //RS_FMT_BGRA16F,
-
         RS_FMT_RGBA32F,
 
         RS_FMT_RGBA16,
+
+        RS_FMT_RGBA8,
+        RS_FMT_RGBX8,
     }
 
     public enum SenderFrameType : UInt32
@@ -764,6 +763,7 @@ namespace Disguise.RenderStream
         RS_FRAMETYPE_HOST_MEMORY = 0x00000000,
         RS_FRAMETYPE_DX11_TEXTURE,
         RS_FRAMETYPE_DX12_TEXTURE,
+        RS_FRAMETYPE_OPENGL_TEXTURE,
         RS_FRAMETYPE_UNKNOWN
     }
 
@@ -809,6 +809,8 @@ namespace Disguise.RenderStream
 
         RS_ERROR_FAILED_TO_INITIALISE_GPGPU,
 
+        RS_ERROR_QUIT,
+
         RS_ERROR_UNSPECIFIED
     }
 
@@ -817,6 +819,12 @@ namespace Disguise.RenderStream
     {
         FRAMEDATA_NO_FLAGS = 0,
         FRAMEDATA_RESET = 1
+    }
+
+    public enum REMOTEPARAMETER_FLAGS : UInt32
+    {
+        REMOTEPARAMETER_NO_FLAGS = 0,
+        REMOTEPARAMETER_NO_SEQUENCE = 1
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -851,7 +859,7 @@ namespace Disguise.RenderStream
         public double localTimeDelta;
         public UInt32 frameRateNumerator;
         public UInt32 frameRateDenominator;
-        public UInt32 flags;
+        public UInt32 flags; // FRAMEDATA_FLAGS
         public UInt32 scene;
     }
 
@@ -876,6 +884,9 @@ namespace Disguise.RenderStream
         // struct Dx12Data
         [FieldOffset(0)]
         public /*struct ID3D12Resource**/ IntPtr dx12_resource;
+        // struct OpenGlData
+        [FieldOffset(0)]
+        public /*GLuint**/ UInt32 gl_texture;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -902,6 +913,8 @@ namespace Disguise.RenderStream
         public StreamHandle handle;
         [MarshalAs(UnmanagedType.LPStr)]
         public string channel;
+        public UInt64 mappingId;
+        public Int32 iViewpoint;
         [MarshalAs(UnmanagedType.LPStr)]
         public string name;
         public UInt32 width;
@@ -924,6 +937,13 @@ namespace Disguise.RenderStream
         RS_PARAMETER_POSE,      // 4x4 TR matrix
         RS_PARAMETER_TRANSFORM, // 4x4 TRS matrix
         RS_PARAMETER_TEXT,
+    }
+
+    public enum RemoteParameterDmxType : UInt32
+    {
+        RS_DMX_DEFAULT,
+        RS_DMX_8,
+        RS_DMX_16_BE,
     }
 
     [StructLayout(LayoutKind.Explicit)]
@@ -964,8 +984,9 @@ namespace Disguise.RenderStream
         public UInt32 nOptions;
         public /*const char***/ IntPtr options;
 
-        public Int32 dmxOffset;
-        public UInt32 dmxType;
+        public Int32 dmxOffset; // DMX channel offset or auto (-1)
+        public RemoteParameterDmxType dmxType;
+        public UInt32 flags; // REMOTEPARAMETER_FLAGS
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -1020,7 +1041,7 @@ namespace Disguise.RenderStream
         public string[] options = { };
 
         public Int32 dmxOffset;
-        public UInt32 dmxType;
+        public RemoteParameterDmxType dmxType;
     }
 
     public class ManagedRemoteParameters
@@ -1058,6 +1079,8 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_BGRX8: return TextureFormat.BGRA32;
                 case RSPixelFormat.RS_FMT_RGBA32F: return TextureFormat.RGBAFloat;
                 case RSPixelFormat.RS_FMT_RGBA16: return TextureFormat.RGBAFloat;
+                case RSPixelFormat.RS_FMT_RGBA8: return TextureFormat.RGBA32;
+                case RSPixelFormat.RS_FMT_RGBX8: return TextureFormat.RGBA32;
                 default: return TextureFormat.BGRA32;
             }
         }
@@ -1070,6 +1093,8 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGBFloat;
                 default: return RenderTextureFormat.ARGBFloat;
             }
         }
@@ -1088,6 +1113,7 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Device(/*ID3D11Device**/ IntPtr device);
         unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Resource(/*ID3D11Resource**/ IntPtr resource);
         unsafe delegate RS_ERROR pInitialiseGpGpuWithDX12DeviceAndQueue(/*ID3D12Device**/ IntPtr device, /*ID3D12CommandQueue**/ IntPtr queue);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithOpenGlContexts(/*HGLRC**/ IntPtr glContext, /*HDC**/ IntPtr deviceContext);
         unsafe delegate RS_ERROR pShutdown();
 
         // non-isolated functions, these require init prior to use
@@ -1131,6 +1157,7 @@ namespace Disguise.RenderStream
         pInitialiseGpGpuWithDX11Device m_initialiseGpGpuWithDX11Device = null;
         pInitialiseGpGpuWithDX11Resource m_initialiseGpGpuWithDX11Resource = null;
         pInitialiseGpGpuWithDX12DeviceAndQueue m_initialiseGpGpuWithDX12DeviceAndQueue = null;
+        pInitialiseGpGpuWithOpenGlContexts m_initialiseGpGpuWithOpenGlContexts = null;
         pShutdown m_shutdown = null;
 
         pUseDX12SharedHeapFlag m_useDX12SharedHeapFlag = null;
@@ -1675,7 +1702,7 @@ namespace Disguise.RenderStream
         const string _dllName = "d3renderstream";
 
         const int RENDER_STREAM_VERSION_MAJOR = 1;
-        const int RENDER_STREAM_VERSION_MINOR = 27;
+        const int RENDER_STREAM_VERSION_MINOR = 28;
 
         bool functionsLoaded = false;
         IntPtr d3RenderStreamDLL = IntPtr.Zero;
@@ -1741,6 +1768,7 @@ namespace Disguise.RenderStream
             m_initialiseGpGpuWithDX11Device = DelegateBuilder<pInitialiseGpGpuWithDX11Device>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX11Device");
             m_initialiseGpGpuWithDX11Resource = DelegateBuilder<pInitialiseGpGpuWithDX11Resource>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX11Resource");
             m_initialiseGpGpuWithDX12DeviceAndQueue = DelegateBuilder<pInitialiseGpGpuWithDX12DeviceAndQueue>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX12DeviceAndQueue");
+            m_initialiseGpGpuWithOpenGlContexts = DelegateBuilder<pInitialiseGpGpuWithOpenGlContexts>(d3RenderStreamDLL, "rs_initialiseGpGpuWithOpenGlContexts");
             m_shutdown = DelegateBuilder<pShutdown>(d3RenderStreamDLL, "rs_shutdown");
 
             m_useDX12SharedHeapFlag = DelegateBuilder<pUseDX12SharedHeapFlag>(d3RenderStreamDLL, "rs_useDX12SharedHeapFlag");
@@ -1771,7 +1799,9 @@ namespace Disguise.RenderStream
             m_setNewStatusMessage = DelegateBuilder<pSetNewStatusMessage>(d3RenderStreamDLL, "rs_setNewStatusMessage");
 
             if (m_initialise == null || 
-                m_initialiseGpGpuWithoutInterop == null || m_initialiseGpGpuWithDX11Device == null || m_initialiseGpGpuWithDX11Resource == null || m_initialiseGpGpuWithDX12DeviceAndQueue == null ||
+                m_initialiseGpGpuWithoutInterop == null || 
+                m_initialiseGpGpuWithDX11Device == null || m_initialiseGpGpuWithDX11Resource == null || m_initialiseGpGpuWithDX12DeviceAndQueue == null ||
+                m_initialiseGpGpuWithOpenGlContexts == null ||
                 m_shutdown == null || 
                 m_saveSchema == null || m_loadSchema == null || 
                 m_setSchema == null || m_getStreams == null || 
