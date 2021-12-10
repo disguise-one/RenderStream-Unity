@@ -1217,7 +1217,7 @@ namespace Disguise.RenderStream
 
             string trace = String.IsNullOrEmpty(stackTrace) ? "" : "\nTrace: " + stackTrace;
 
-            m_logToD3(prefix + logString + trace + '\n');
+            m_logToD3(prefix + logString + trace);
         }
 
         void setNewStatusMessage(string message)
