@@ -596,30 +596,31 @@ public class DisguiseCameraCapture : MonoBehaviour
         m_newFrameData = DisguiseRenderStream.newFrameData && m_frameSender != null && m_frameSender.GetCameraData(ref m_cameraData);
         float cameraAspect = m_camera.aspect;
         Vector2 lensShift = new Vector2(0.0f, 0.0f);
-        if (m_newFrameData && m_cameraData.cameraHandle != 0)
+        if (m_newFrameData)
         {
-
             cameraAspect = m_cameraData.sensorX / m_cameraData.sensorY;
-            transform.localPosition = new Vector3(m_cameraData.x, m_cameraData.y, m_cameraData.z);
-            transform.localRotation = Quaternion.Euler(new Vector3(-m_cameraData.rx, m_cameraData.ry, -m_cameraData.rz));
-            m_camera.nearClipPlane = m_cameraData.nearZ;
-            m_camera.farClipPlane = m_cameraData.farZ;
+			if (m_cameraData.cameraHandle != 0)  // If no camera, only set aspect
+			{
+				transform.localPosition = new Vector3(m_cameraData.x, m_cameraData.y, m_cameraData.z);
+				transform.localRotation = Quaternion.Euler(new Vector3(-m_cameraData.rx, m_cameraData.ry, -m_cameraData.rz));
+				m_camera.nearClipPlane = m_cameraData.nearZ;
+				m_camera.farClipPlane = m_cameraData.farZ;
 
-            if (m_cameraData.orthoWidth > 0.0f)  // Use an orthographic camera
-            {  
-                m_camera.orthographic = true;
-                m_camera.orthographicSize = 0.5f * m_cameraData.orthoWidth / cameraAspect;
-                transform.localPosition = new Vector3(m_cameraData.x, m_cameraData.y, m_cameraData.z);
-                transform.localRotation = Quaternion.Euler(new Vector3(-m_cameraData.rx, m_cameraData.ry, -m_cameraData.rz));
-            }
-            else  // Perspective projection, use camera lens properties
-            {
-                m_camera.usePhysicalProperties = true;
-                m_camera.sensorSize = new Vector2(m_cameraData.sensorX, m_cameraData.sensorY);
-                m_camera.focalLength = m_cameraData.focalLength;
-                lensShift = new Vector2(-m_cameraData.cx, m_cameraData.cy);
-            }
-
+				if (m_cameraData.orthoWidth > 0.0f)  // Use an orthographic camera
+				{  
+					m_camera.orthographic = true;
+					m_camera.orthographicSize = 0.5f * m_cameraData.orthoWidth / cameraAspect;
+					transform.localPosition = new Vector3(m_cameraData.x, m_cameraData.y, m_cameraData.z);
+					transform.localRotation = Quaternion.Euler(new Vector3(-m_cameraData.rx, m_cameraData.ry, -m_cameraData.rz));
+				}
+				else  // Perspective projection, use camera lens properties
+				{
+					m_camera.usePhysicalProperties = true;
+					m_camera.sensorSize = new Vector2(m_cameraData.sensorX, m_cameraData.sensorY);
+					m_camera.focalLength = m_cameraData.focalLength;
+					lensShift = new Vector2(-m_cameraData.cx, m_cameraData.cy);
+				}
+			}
         }
         else if (m_frameSender != null)
         {
