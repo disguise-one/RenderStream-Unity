@@ -1702,7 +1702,7 @@ namespace Disguise.RenderStream
         const string _dllName = "d3renderstream";
 
         const int RENDER_STREAM_VERSION_MAJOR = 1;
-        const int RENDER_STREAM_VERSION_MINOR = 28;
+        const int RENDER_STREAM_VERSION_MINOR = 29;
 
         bool functionsLoaded = false;
         IntPtr d3RenderStreamDLL = IntPtr.Zero;
