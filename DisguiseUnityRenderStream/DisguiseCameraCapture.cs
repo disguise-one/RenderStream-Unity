@@ -246,7 +246,7 @@ class DisguiseRenderStream
 
             if (field.FieldType == typeof(Texture))
                 fields.images.Add(field);
-            else if (field.FieldType == typeof(String))
+            else if (field.FieldType == typeof(String) || field.FieldType == typeof(String[]))
                 fields.texts.Add(field);
             else
                 fields.numerical.Add(field);
@@ -490,7 +490,10 @@ class DisguiseRenderStream
                             string text = "";
                             if (PluginEntry.instance.getFrameText(spec.hash, i, ref text) == RS_ERROR.RS_ERROR_SUCCESS)
                             {
-                                field.SetValue(text);
+                                if (field.FieldType == typeof(String[]))
+                                    field.SetValue(text.Split(' '));
+                                else
+                                    field.SetValue(text);
                             }
                         }
                         ++i;
