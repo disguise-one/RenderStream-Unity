@@ -1118,6 +1118,7 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Resource(/*ID3D11Resource**/ IntPtr resource);
         unsafe delegate RS_ERROR pInitialiseGpGpuWithDX12DeviceAndQueue(/*ID3D12Device**/ IntPtr device, /*ID3D12CommandQueue**/ IntPtr queue);
         unsafe delegate RS_ERROR pInitialiseGpGpuWithOpenGlContexts(/*HGLRC**/ IntPtr glContext, /*HDC**/ IntPtr deviceContext);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithVulkanDevice(/*VkDevice**/ IntPtr device);
         unsafe delegate RS_ERROR pShutdown();
 
         // non-isolated functions, these require init prior to use
@@ -1144,6 +1145,8 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pGetFrameCamera(StreamHandle streamHandle, /*Out*/ /*CameraData**/ IntPtr outCameraData);  // returns the CameraData for this stream, or RS_ERROR_NOTFOUND if no camera data is available for this stream on this frame
         unsafe delegate RS_ERROR pSendFrame(StreamHandle streamHandle, SenderFrameType frameType, SenderFrameTypeData data, /*const CameraResponseData**/ IntPtr sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
 
+        unsafe delegate RS_ERROR pReleaseImage(SenderFrameType frameType, SenderFrameTypeData data);
+
         unsafe delegate RS_ERROR pLogToD3(string str);
         unsafe delegate RS_ERROR pSendProfilingData(/*ProfilingEntry**/ IntPtr entries, int count);
         unsafe delegate RS_ERROR pSetNewStatusMessage(string msg);
@@ -1162,6 +1165,8 @@ namespace Disguise.RenderStream
         pInitialiseGpGpuWithDX11Resource m_initialiseGpGpuWithDX11Resource = null;
         pInitialiseGpGpuWithDX12DeviceAndQueue m_initialiseGpGpuWithDX12DeviceAndQueue = null;
         pInitialiseGpGpuWithOpenGlContexts m_initialiseGpGpuWithOpenGlContexts = null;
+        pInitialiseGpGpuWithVulkanDevice m_initialiseGpGpuWithVulkanDevice = null;
+
         pShutdown m_shutdown = null;
 
         pUseDX12SharedHeapFlag m_useDX12SharedHeapFlag = null;
@@ -1182,6 +1187,8 @@ namespace Disguise.RenderStream
 
         pGetFrameCamera m_getFrameCamera = null;
         pSendFrame m_sendFrame = null;
+
+        pReleaseImage m_releaseImage = null;
 
         pLogToD3 m_logToD3 = null;
         pSendProfilingData m_sendProfilingData = null;
@@ -1726,6 +1733,17 @@ namespace Disguise.RenderStream
             return "UNKNOWN UNITY PROJECT";
         }
 
+        private bool LoadFn<T>(ref T fn, string fnName) where T : Delegate
+        {
+            fn = DelegateBuilder<T>(d3RenderStreamDLL, fnName);
+            if (fn == null)
+            {
+                Debug.LogError(string.Format("Failed load function \"{0}\" from {1}.dll", fnName, _dllName));
+                return false;
+            }
+            return true;
+        }
+
         private PluginEntry()
         {
 #if PLUGIN_AVAILABLE
@@ -1758,68 +1776,57 @@ namespace Disguise.RenderStream
                 Debug.LogError(string.Format("Failed to load {0}.dll from {1}", _dllName, d3ExePath));
                 return;
             }
-
-            m_registerLoggingFunc = DelegateBuilder<pRegisterLoggingFunc>(d3RenderStreamDLL, "rs_registerLoggingFunc");
-            m_registerErrorLoggingFunc = DelegateBuilder<pRegisterErrorLoggingFunc>(d3RenderStreamDLL, "rs_registerErrorLoggingFunc");
-            m_registerVerboseLoggingFunc = DelegateBuilder<pRegisterVerboseLoggingFunc>(d3RenderStreamDLL, "rs_registerVerboseLoggingFunc");
-
-            m_unregisterLoggingFunc = DelegateBuilder<pUnregisterLoggingFunc>(d3RenderStreamDLL, "rs_unregisterLoggingFunc");
-            m_unregisterErrorLoggingFunc = DelegateBuilder<pUnregisterErrorLoggingFunc>(d3RenderStreamDLL, "rs_unregisterErrorLoggingFunc");
-            m_unregisterVerboseLoggingFunc = DelegateBuilder<pUnregisterVerboseLoggingFunc>(d3RenderStreamDLL, "rs_unregisterVerboseLoggingFunc");
-
-            m_initialise = DelegateBuilder<pInitialise>(d3RenderStreamDLL, "rs_initialise");
-            m_initialiseGpGpuWithoutInterop = DelegateBuilder<pInitialiseGpGpuWithoutInterop>(d3RenderStreamDLL, "rs_initialiseGpGpuWithoutInterop");
-            m_initialiseGpGpuWithDX11Device = DelegateBuilder<pInitialiseGpGpuWithDX11Device>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX11Device");
-            m_initialiseGpGpuWithDX11Resource = DelegateBuilder<pInitialiseGpGpuWithDX11Resource>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX11Resource");
-            m_initialiseGpGpuWithDX12DeviceAndQueue = DelegateBuilder<pInitialiseGpGpuWithDX12DeviceAndQueue>(d3RenderStreamDLL, "rs_initialiseGpGpuWithDX12DeviceAndQueue");
-            m_initialiseGpGpuWithOpenGlContexts = DelegateBuilder<pInitialiseGpGpuWithOpenGlContexts>(d3RenderStreamDLL, "rs_initialiseGpGpuWithOpenGlContexts");
-            m_shutdown = DelegateBuilder<pShutdown>(d3RenderStreamDLL, "rs_shutdown");
-
-            m_useDX12SharedHeapFlag = DelegateBuilder<pUseDX12SharedHeapFlag>(d3RenderStreamDLL, "rs_useDX12SharedHeapFlag");
-            m_saveSchema = DelegateBuilder<pSaveSchema>(d3RenderStreamDLL, "rs_saveSchema");
-            m_loadSchema = DelegateBuilder<pLoadSchema>(d3RenderStreamDLL, "rs_loadSchema");
-
-            m_setSchema = DelegateBuilder<pSetSchema>(d3RenderStreamDLL, "rs_setSchema");
-
-            m_getStreams = DelegateBuilder<pGetStreams>(d3RenderStreamDLL, "rs_getStreams");
-
-            m_awaitFrameData = DelegateBuilder<pAwaitFrameData>(d3RenderStreamDLL, "rs_awaitFrameData");
-            m_setFollower = DelegateBuilder<pSetFollower>(d3RenderStreamDLL, "rs_setFollower");
-            m_beginFollowerFrame = DelegateBuilder<pBeginFollowerFrame>(d3RenderStreamDLL, "rs_beginFollowerFrame");
             
-            m_getFrameParameters = DelegateBuilder<pGetFrameParameters>(d3RenderStreamDLL, "rs_getFrameParameters");
-            m_getFrameImageData = DelegateBuilder<pGetFrameImageData>(d3RenderStreamDLL, "rs_getFrameImageData");
-            m_getFrameImage = DelegateBuilder<pGetFrameImage>(d3RenderStreamDLL, "rs_getFrameImage");
-            m_getFrameText = DelegateBuilder<pGetFrameText>(d3RenderStreamDLL, "rs_getFrameText");
+            functionsLoaded = true;
 
-            m_getFrameCamera = DelegateBuilder<pGetFrameCamera>(d3RenderStreamDLL, "rs_getFrameCamera");
-            m_sendFrame = DelegateBuilder<pSendFrame>(d3RenderStreamDLL, "rs_sendFrame");
+            functionsLoaded &= LoadFn(ref m_registerLoggingFunc, "rs_registerLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_registerErrorLoggingFunc, "rs_registerErrorLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_registerVerboseLoggingFunc, "rs_registerVerboseLoggingFunc");
 
-            m_logToD3 = DelegateBuilder<pLogToD3>(d3RenderStreamDLL, "rs_logToD3");
-            m_setNewStatusMessage = DelegateBuilder<pSetNewStatusMessage>(d3RenderStreamDLL, "rs_setNewStatusMessage");
+            functionsLoaded &= LoadFn(ref m_unregisterLoggingFunc, "rs_unregisterLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_unregisterErrorLoggingFunc, "rs_unregisterErrorLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_unregisterVerboseLoggingFunc, "rs_unregisterVerboseLoggingFunc");
 
-            m_logToD3 = DelegateBuilder<pLogToD3>(d3RenderStreamDLL, "rs_logToD3");
-            m_sendProfilingData = DelegateBuilder<pSendProfilingData>(d3RenderStreamDLL, "rs_sendProfilingData");
-            m_setNewStatusMessage = DelegateBuilder<pSetNewStatusMessage>(d3RenderStreamDLL, "rs_setNewStatusMessage");
+            functionsLoaded &= LoadFn(ref m_initialise, "rs_initialise");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithoutInterop, "rs_initialiseGpGpuWithoutInterop");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithDX11Device, "rs_initialiseGpGpuWithDX11Device");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithDX11Resource, "rs_initialiseGpGpuWithDX11Resource");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithDX12DeviceAndQueue, "rs_initialiseGpGpuWithDX12DeviceAndQueue");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithOpenGlContexts, "rs_initialiseGpGpuWithOpenGlContexts");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithVulkanDevice, "rs_initialiseGpGpuWithVulkanDevice");
+            functionsLoaded &= LoadFn(ref m_shutdown, "rs_shutdown");
 
-            if (m_initialise == null || 
-                m_initialiseGpGpuWithoutInterop == null || 
-                m_initialiseGpGpuWithDX11Device == null || m_initialiseGpGpuWithDX11Resource == null || m_initialiseGpGpuWithDX12DeviceAndQueue == null ||
-                m_initialiseGpGpuWithOpenGlContexts == null ||
-                m_shutdown == null || 
-                m_saveSchema == null || m_loadSchema == null || 
-                m_setSchema == null || m_getStreams == null || 
-                m_sendFrame == null || m_awaitFrameData == null ||
-                m_setFollower == null || m_beginFollowerFrame == null ||
-                m_getFrameParameters == null || m_getFrameImageData == null ||
-                m_getFrameImage == null || m_getFrameText == null|| m_getFrameCamera == null ||
-                m_logToD3 == null || m_sendProfilingData == null || m_setNewStatusMessage == null)
+            functionsLoaded &= LoadFn(ref m_useDX12SharedHeapFlag, "rs_useDX12SharedHeapFlag");
+            functionsLoaded &= LoadFn(ref m_saveSchema, "rs_saveSchema");
+            functionsLoaded &= LoadFn(ref m_loadSchema, "rs_loadSchema");
+
+            functionsLoaded &= LoadFn(ref m_setSchema, "rs_setSchema");
+
+            functionsLoaded &= LoadFn(ref m_getStreams, "rs_getStreams");
+
+            functionsLoaded &= LoadFn(ref m_awaitFrameData, "rs_awaitFrameData");
+            functionsLoaded &= LoadFn(ref m_setFollower, "rs_setFollower");
+            functionsLoaded &= LoadFn(ref m_beginFollowerFrame, "rs_beginFollowerFrame");
+
+            functionsLoaded &= LoadFn(ref m_getFrameParameters, "rs_getFrameParameters");
+            functionsLoaded &= LoadFn(ref m_getFrameImageData, "rs_getFrameImageData");
+            functionsLoaded &= LoadFn(ref m_getFrameImage, "rs_getFrameImage");
+            functionsLoaded &= LoadFn(ref m_getFrameText, "rs_getFrameText");
+
+            functionsLoaded &= LoadFn(ref m_getFrameCamera, "rs_getFrameCamera");
+            functionsLoaded &= LoadFn(ref m_sendFrame, "rs_sendFrame");
+
+            functionsLoaded &= LoadFn(ref m_releaseImage, "rs_releaseImage");
+
+            functionsLoaded &= LoadFn(ref m_logToD3, "rs_logToD3");
+            functionsLoaded &= LoadFn(ref m_sendProfilingData, "rs_sendProfilingData");
+            functionsLoaded &= LoadFn(ref m_setNewStatusMessage, "rs_setNewStatusMessage");
+
+            if (!functionsLoaded)
             {
                 Debug.LogError(string.Format("One or more functions failed load from {0}.dll", _dllName));
                 return;
             }
-
-            functionsLoaded = true;
 
             if (m_registerLoggingFunc != null)
                 m_registerLoggingFunc(logInfo);
