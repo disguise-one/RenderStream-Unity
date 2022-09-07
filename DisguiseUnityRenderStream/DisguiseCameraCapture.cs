@@ -1020,6 +1020,12 @@ namespace Disguise.RenderStream
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct Schema
     {
+        [MarshalAs(UnmanagedType.LPStr)] 
+        public string engineName;
+        [MarshalAs(UnmanagedType.LPStr)]
+        public string engineVersion;
+        [MarshalAs(UnmanagedType.LPStr)]
+        public string info;
         public Channels channels;
         public Scenes scenes;
     }
@@ -1296,6 +1302,9 @@ namespace Disguise.RenderStream
             try
             {
                 Schema cSchema = new Schema();
+                cSchema.engineName = "Unity Engine";
+                cSchema.engineVersion = Application.unityVersion;
+                cSchema.info = Application.productName;
                 cSchema.channels.nChannels = (UInt32)schema.channels.Length;
                 cSchema.channels.channels = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)cSchema.channels.nChannels);
                 allocations.Add(cSchema.channels.channels);
