@@ -874,6 +874,17 @@ namespace Disguise.RenderStream
         public CameraData camera;
     }
 
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public struct FrameResponseData
+    {
+        public /*CameraResponseData**/ IntPtr cameraData;
+        public UInt64 schemaHash;
+        public UInt64 parameterDataSize;
+        public IntPtr parameterData;
+        public UInt32 textDataCount;
+        public /*const char***/ IntPtr textData;
+    }
+
     [StructLayout(LayoutKind.Explicit)]
     public /*union*/ struct SenderFrameTypeData
     {
@@ -1459,7 +1470,7 @@ namespace Disguise.RenderStream
             return res;
         }
 
-        public RS_ERROR sendFrame(StreamHandle streamHandle, SenderFrameType frameType, SenderFrameTypeData data, CameraResponseData sendData)
+        public RS_ERROR sendFrame(StreamHandle streamHandle, SenderFrameType frameType, SenderFrameTypeData data, FrameResponseData sendData)
         {
             if (m_sendFrame == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
@@ -1467,6 +1478,7 @@ namespace Disguise.RenderStream
             if (handleReference.IsAllocated)
                 handleReference.Free();
             handleReference = GCHandle.Alloc(sendData, GCHandleType.Pinned);
+            
             try
             {
                 RS_ERROR error = m_sendFrame(streamHandle, frameType, data, handleReference.AddrOfPinnedObject());
@@ -1837,10 +1849,14 @@ namespace Disguise.RenderStream
                 return;
             }
 
-            if (m_registerLoggingFunc != null)
-                m_registerLoggingFunc(logInfo);
-            if (m_registerErrorLoggingFunc != null)
-                m_registerErrorLoggingFunc(logError);
+            // There is an issue with these logging callbacks sometimes throwing inside of the dll which can cause all kinds of problems
+            // exception consistentency is questionable, often the same exception can be seen at the same point in time
+            // however periodically a minor difference may occur where the exception is not thrown where expected or even at all
+
+            //if (m_registerLoggingFunc != null)
+            //    m_registerLoggingFunc(logInfo);
+            //if (m_registerErrorLoggingFunc != null)
+            //    m_registerErrorLoggingFunc(logError);
 
             if (m_logToD3 != null)
                  Application.logMessageReceivedThreaded += logToD3;
@@ -1971,9 +1987,15 @@ namespace Disguise.RenderStream
             m_lastFrameCount = Time.frameCount;
 
             if (m_convertedTex.width != m_sourceTex.width || m_convertedTex.height != m_sourceTex.height)
-                m_convertedTex.Resize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
+                m_convertedTex.Reinitialize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
 
-            m_responseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
+            m_cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
+
+            if (cameraHandleReference.IsAllocated)
+                cameraHandleReference.Free();
+            cameraHandleReference = GCHandle.Alloc(m_cameraResponseData, GCHandleType.Pinned);
+
+            m_responseData = new FrameResponseData{ cameraData = cameraHandleReference.AddrOfPinnedObject() };
 
 // Blocks HDRP streams in r18.2
 // #if UNITY_PIPELINE_HDRP
@@ -1994,7 +2016,16 @@ namespace Disguise.RenderStream
             Graphics.ConvertTexture(unflipped, m_convertedTex);
             RenderTexture.ReleaseTemporary(unflipped);
 
-            SendFrame(m_convertedTex);
+            try
+            {
+                SendFrame(m_convertedTex);
+            }
+            finally
+            {
+                if (cameraHandleReference.IsAllocated)
+                    cameraHandleReference.Free();
+            }
+            
 // #endif
         }
 
@@ -2006,7 +2037,9 @@ namespace Disguise.RenderStream
         public Camera Cam { get; set; }
 
         private RenderTexture m_sourceTex;
-        private CameraResponseData m_responseData;
+        private FrameResponseData m_responseData;
+        private CameraResponseData m_cameraResponseData;
+        private GCHandle cameraHandleReference;
 
         string m_name;
         Texture2D m_convertedTex;
