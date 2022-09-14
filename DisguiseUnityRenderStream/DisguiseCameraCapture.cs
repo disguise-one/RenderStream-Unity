@@ -1987,7 +1987,7 @@ namespace Disguise.RenderStream
             m_lastFrameCount = Time.frameCount;
 
             if (m_convertedTex.width != m_sourceTex.width || m_convertedTex.height != m_sourceTex.height)
-                m_convertedTex.Reinitialize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
+                m_convertedTex.Resize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
 
             m_cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
 
