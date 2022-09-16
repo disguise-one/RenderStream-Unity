@@ -1121,13 +1121,8 @@ namespace Disguise.RenderStream
         }
 
         // isolated functions, do not require init prior to use
-        unsafe delegate void pRegisterLoggingFunc(logger_t logger);
-        unsafe delegate void pRegisterErrorLoggingFunc(logger_t logger);
-        unsafe delegate void pRegisterVerboseLoggingFunc(logger_t logger);
-
-        unsafe delegate void pUnregisterLoggingFunc();
-        unsafe delegate void pUnregisterErrorLoggingFunc();
-        unsafe delegate void pUnregisterVerboseLoggingFunc();
+        unsafe delegate void pRegisterLogFunc(logger_t logger);
+        unsafe delegate void pUnregisterLogFunc();
 
         unsafe delegate RS_ERROR pInitialise(int expectedVersionMajor, int expectedVersionMinor);
         unsafe delegate RS_ERROR pInitialiseGpGpuWithoutInterop(/*ID3D11Device**/ IntPtr device);
@@ -1168,13 +1163,13 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pSendProfilingData(/*ProfilingEntry**/ IntPtr entries, int count);
         unsafe delegate RS_ERROR pSetNewStatusMessage(string msg);
 
-        pRegisterLoggingFunc m_registerLoggingFunc = null;
-        pRegisterErrorLoggingFunc m_registerErrorLoggingFunc = null;
-        pRegisterVerboseLoggingFunc m_registerVerboseLoggingFunc = null;
+        pRegisterLogFunc m_registerLoggingFunc = null;
+        pRegisterLogFunc m_registerErrorLoggingFunc = null;
+        pRegisterLogFunc m_registerVerboseLoggingFunc = null;
 
-        pUnregisterLoggingFunc m_unregisterLoggingFunc = null;
-        pUnregisterErrorLoggingFunc m_unregisterErrorLoggingFunc = null;
-        pUnregisterVerboseLoggingFunc m_unregisterVerboseLoggingFunc = null;
+        pUnregisterLogFunc m_unregisterLoggingFunc = null;
+        pUnregisterLogFunc m_unregisterErrorLoggingFunc = null;
+        pUnregisterLogFunc m_unregisterVerboseLoggingFunc = null;
 
         pInitialise m_initialise = null;
         pInitialiseGpGpuWithoutInterop m_initialiseGpGpuWithoutInterop = null;
@@ -1210,6 +1205,9 @@ namespace Disguise.RenderStream
         pLogToD3 m_logToD3 = null;
         pSendProfilingData m_sendProfilingData = null;
         pSetNewStatusMessage m_setNewStatusMessage = null;
+
+        logger_t m_logInfo;
+        logger_t m_logError;
 
         void logInfo(string message)
         {
@@ -1853,10 +1851,13 @@ namespace Disguise.RenderStream
             // exception consistentency is questionable, often the same exception can be seen at the same point in time
             // however periodically a minor difference may occur where the exception is not thrown where expected or even at all
 
-            //if (m_registerLoggingFunc != null)
-            //    m_registerLoggingFunc(logInfo);
-            //if (m_registerErrorLoggingFunc != null)
-            //    m_registerErrorLoggingFunc(logError);
+            m_logInfo = logInfo;
+            m_logError = logError;
+
+            if (m_registerLoggingFunc != null)
+                m_registerLoggingFunc(m_logInfo);
+            if (m_registerErrorLoggingFunc != null)
+                m_registerErrorLoggingFunc(m_logError);
 
             if (m_logToD3 != null)
                  Application.logMessageReceivedThreaded += logToD3;
