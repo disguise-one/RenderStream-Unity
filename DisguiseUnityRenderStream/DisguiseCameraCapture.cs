@@ -22,6 +22,11 @@ using System.Threading;
 using System.Runtime.Remoting;
 using Disguise.RenderStream;
 using System.Linq;
+using Unity.ClusterDisplay.Utils;
+
+#if ENABLE_CLUSTER_DISPLAY
+using Unity.ClusterDisplay;
+#endif
 
 #if UNITY_EDITOR
 class DisguiseRenderStream  : UnityEditor.Build.IPreprocessBuildWithReport
@@ -336,8 +341,249 @@ class DisguiseRenderStream
         frameData = new FrameData();
         awaiting = false;
     }
+    
+    static List<Texture2D> s_ScratchTextures = new ();
 
-    static public IEnumerator AwaitFrame()
+    static EventBus<FrameData> s_FollowerData;
+    static IDisposable s_FollowerDataSubscription;
+    
+#if ENABLE_CLUSTER_DISPLAY
+    public static void RegisterClusterDisplayEvents()
+    {
+        if (ServiceLocator.TryGet(out IClusterSyncState clusterSyncState))
+        {
+            s_FollowerData = new EventBus<FrameData>(clusterSyncState);
+            if (clusterSyncState.NodeRole is NodeRole.Emitter)
+            {
+                ClusterSyncLooper.onInstanceDoPreFrame += AwaitFrameEmitter;
+            }
+            else if (clusterSyncState.NodeRole is NodeRole.Repeater)
+            {
+                s_FollowerDataSubscription = s_FollowerData.Subscribe(BeginFollowerFrameRepeater);
+                var error = PluginEntry.instance.setFollower(1);
+                if (error is not RS_ERROR.RS_ERROR_SUCCESS)
+                {
+                    ClusterDebug.Log($"Could not set follower: {error.ToString()}");
+                }
+            }
+        }
+    }
+
+    public static void UnregisterClusterDisplayEvents()
+    {
+        ClusterSyncLooper.onInstanceDoPreFrame -= AwaitFrameEmitter;
+        s_FollowerDataSubscription?.Dispose();
+        s_FollowerData?.Dispose();
+    }
+    
+    static void AwaitFrameEmitter()
+    {
+        DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
+        
+        s_ScratchTextures.Clear();
+        RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
+        if (error == RS_ERROR.RS_ERROR_QUIT)
+            Application.Quit();
+        if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
+            CreateStreams();
+        
+        s_FollowerData.Publish(frameData);
+        switch (settings.sceneControl)
+        {
+            case DisguiseRenderStreamSettings.SceneControl.Selection:
+                if (SceneManager.GetActiveScene().buildIndex != frameData.scene)
+                {
+                    newFrameData = false;
+                    SceneManager.LoadScene((int)frameData.scene);
+                    return;
+                }
+
+                break;
+        }
+        newFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
+        if (newFrameData && frameData.scene < schema.scenes.Length)
+        {
+            
+            ManagedRemoteParameters spec = schema.scenes[frameData.scene];
+            SceneFields fields = sceneFields[frameData.scene];
+            int nNumericalParameters = 0;
+            int nImageParameters = 0;
+            int nTextParameters = 0;
+            for (int i = 0; i < spec.parameters.Length; ++i)
+            {
+                if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_NUMBER)
+                    ++nNumericalParameters;
+                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_IMAGE)
+                    ++nImageParameters;
+                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_POSE || spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TRANSFORM)
+                    nNumericalParameters += 16;
+                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TEXT)
+                    ++nTextParameters;
+            }
+
+            float[] parameters = new float[nNumericalParameters];
+            ImageFrameData[] imageData = new ImageFrameData[nImageParameters];
+            if (PluginEntry.instance.getFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.getFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
+            {
+                if (fields.numerical != null)
+                {
+                    int i = 0;
+                    foreach (var field in fields.numerical)
+                    {
+                        Type fieldType = field.FieldType;
+                        if (fieldType.IsEnum)
+                        {
+                            field.SetValue(Enum.ToObject(fieldType, Convert.ToUInt64(parameters[i])));
+                            ++i;
+                        }
+                        else if (fieldType == typeof(Vector2))
+                        {
+                            Vector2 v = new Vector2(parameters[i + 0], parameters[i + 1]);
+                            field.SetValue(v);
+                            i += 2;
+                        }
+                        else if (fieldType == typeof(Vector2Int))
+                        {
+                            Vector2Int v = new Vector2Int((int)parameters[i + 0], (int)parameters[i + 1]);
+                            field.SetValue(v);
+                            i += 2;
+                        }
+                        else if (fieldType == typeof(Vector3))
+                        {
+                            Vector3 v = new Vector3(parameters[i + 0], parameters[i + 1], parameters[i + 2]);
+                            field.SetValue(v);
+                            i += 3;
+                        }
+                        else if (fieldType == typeof(Vector3Int))
+                        {
+                            Vector3Int v = new Vector3Int((int)parameters[i + 0], (int)parameters[i + 1], (int)parameters[i + 2]);
+                            field.SetValue(v);
+                            i += 3;
+                        }
+                        else if (fieldType == typeof(Vector4))
+                        {
+                            Vector4 v = new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
+                            field.SetValue(v);
+                            i += 4;
+                        }
+                        else if (fieldType == typeof(Color))
+                        {
+                            Color v = new Color(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
+                            field.SetValue(v);
+                            i += 4;
+                        }
+                        else if (fieldType == typeof(Transform))
+                        {
+                            Matrix4x4 m = new Matrix4x4();
+                            m.SetColumn(0, new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]));
+                            m.SetColumn(1, new Vector4(parameters[i + 4], parameters[i + 5], parameters[i + 6], parameters[i + 7]));
+                            m.SetColumn(2, new Vector4(parameters[i + 8], parameters[i + 9], parameters[i + 10], parameters[i + 11]));
+                            m.SetColumn(3, new Vector4(parameters[i + 12], parameters[i + 13], parameters[i + 14], parameters[i + 15]));
+                            Transform transform = field.GetValue() as Transform;
+                            transform.localPosition = new Vector3(m[0, 3], m[1, 3], m[2, 3]);
+                            transform.localScale = m.lossyScale;
+                            transform.localRotation = m.rotation;
+                            i += 16;
+                        }
+                        else
+                        {
+                            if (field.info != null)
+                                field.SetValue(Convert.ChangeType(parameters[i], fieldType));
+                            ++i;
+                        }
+                    }
+                }
+
+                if (fields.images != null)
+                {
+                    while (s_ScratchTextures.Count < imageData.Length)
+                    {
+                        int index = s_ScratchTextures.Count;
+                        s_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
+                    }
+
+                    uint i = 0;
+                    foreach (var field in fields.images)
+                    {
+                        if (field.GetValue() is RenderTexture renderTexture)
+                        {
+                            Texture2D texture = s_ScratchTextures[(int)i];
+                            if (texture.width != imageData[i].width || texture.height != imageData[i].height || texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
+                            {
+                                s_ScratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, true);
+                                texture = s_ScratchTextures[(int)i];
+                            }
+
+                            if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
+                            {
+                                texture.IncrementUpdateCount();
+                                Graphics.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+                                renderTexture.IncrementUpdateCount();
+                            }
+                        }
+
+                        ++i;
+                    }
+                }
+
+                if (fields.texts != null)
+                {
+                    uint i = 0;
+                    foreach (var field in fields.texts)
+                    {
+                        string text = "";
+                        if (PluginEntry.instance.getFrameText(spec.hash, i, ref text) == RS_ERROR.RS_ERROR_SUCCESS)
+                        {
+                            if (field.FieldType == typeof(String[]))
+                                field.SetValue(text.Split(' '));
+                            else
+                                field.SetValue(text);
+                        }
+                    }
+
+                    ++i;
+                }
+            }
+        }
+    }
+    
+    
+    static void BeginFollowerFrameRepeater(FrameData emitterFrameData)
+    {
+        ClusterDebug.Log($"Begin Follower {emitterFrameData.tTracked}");
+        DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
+        s_ScratchTextures.Clear();
+        RS_ERROR error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
+        Debug.Assert(error != RS_ERROR.RS_NOT_INITIALISED);
+        frameData = emitterFrameData;
+        ClusterDebug.Log($"Called beginFollowerFrame");
+        if (error == RS_ERROR.RS_ERROR_QUIT)
+            Application.Quit();
+        if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
+        {
+            CreateStreams();
+            error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
+            ClusterDebug.Log($"Called beginFollowerFrame (again)");
+        }
+
+        switch (settings.sceneControl)
+        {
+            case DisguiseRenderStreamSettings.SceneControl.Selection:
+                if (SceneManager.GetActiveScene().buildIndex != DisguiseRenderStream.frameData.scene)
+                {
+                    newFrameData = false;
+                    SceneManager.LoadScene((int)DisguiseRenderStream.frameData.scene);
+                    return;
+                }
+
+                break;
+        }
+
+        newFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
+    }
+#endif
+    
+    public static IEnumerator AwaitFrame()
     {
         if (awaiting)
             yield break;
@@ -569,6 +815,14 @@ class DisguiseRenderStream
 [RequireComponent(typeof(Camera))]
 public class DisguiseCameraCapture : MonoBehaviour
 {
+#if ENABLE_CLUSTER_DISPLAY
+    void OnEnable()
+    {
+        DisguiseRenderStream.RegisterClusterDisplayEvents();
+    }
+    
+#endif
+    
     // Start is called before the first frame update
     public IEnumerator Start()
     {
@@ -585,11 +839,12 @@ public class DisguiseCameraCapture : MonoBehaviour
         m_frameSender = new Disguise.RenderStream.FrameSender(gameObject.name, m_camera);
         RenderPipelineManager.endFrameRendering += RenderPipelineManager_endFrameRendering;
 
+#if !ENABLE_CLUSTER_DISPLAY
         if (Application.isPlaying == false)
             yield break;
-
         if (!DisguiseRenderStream.awaiting)
             yield return StartCoroutine(DisguiseRenderStream.AwaitFrame());
+#endif
     }
 
     // Update is called once per frame
@@ -601,6 +856,7 @@ public class DisguiseCameraCapture : MonoBehaviour
         Vector2 lensShift = new Vector2(0.0f, 0.0f);
         if (m_newFrameData)
         {
+            ClusterDebug.Log("GetFrameCamera");
             cameraAspect = m_cameraData.sensorX / m_cameraData.sensorY;
 			if (m_cameraData.cameraHandle != 0)  // If no camera, only set aspect
 			{
@@ -706,7 +962,10 @@ public class DisguiseCameraCapture : MonoBehaviour
         if (m_newFrameData)
         {
             if (m_frameSender != null)
+            {
                 m_frameSender.SendFrame(DisguiseRenderStream.frameData, m_cameraData);
+                ClusterDebug.Log("SendFrame");
+            }
             m_newFrameData = false;
         }
     }
@@ -731,6 +990,10 @@ public class DisguiseCameraCapture : MonoBehaviour
             m_frameSender.DestroyStream();
         }
         RenderPipelineManager.endFrameRendering -= RenderPipelineManager_endFrameRendering;
+        
+        #if ENABLE_CLUSTER_DISPLAY
+        DisguiseRenderStream.UnregisterClusterDisplayEvents();
+        #endif
     }
 
     Camera m_camera;
@@ -1537,7 +1800,7 @@ namespace Disguise.RenderStream
 
             try
             {
-                RS_ERROR error = beginFollowerFrame(tTracked);
+                RS_ERROR error = m_beginFollowerFrame(tTracked);
                 return error;
             }
             finally
@@ -1988,7 +2251,7 @@ namespace Disguise.RenderStream
             m_lastFrameCount = Time.frameCount;
 
             if (m_convertedTex.width != m_sourceTex.width || m_convertedTex.height != m_sourceTex.height)
-                m_convertedTex.Resize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
+                m_convertedTex.Reinitialize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
 
             m_cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
 
