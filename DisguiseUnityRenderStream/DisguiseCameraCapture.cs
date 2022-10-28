@@ -342,7 +342,7 @@ class DisguiseRenderStream
         awaiting = false;
     }
     
-    static List<Texture2D> s_ScratchTextures = new ();
+    static readonly List<Texture2D> k_ScratchTextures = new ();
 
     static EventBus<FrameData> s_FollowerData;
     static IDisposable s_FollowerDataSubscription;
@@ -350,37 +350,45 @@ class DisguiseRenderStream
 #if ENABLE_CLUSTER_DISPLAY
     public static void RegisterClusterDisplayEvents()
     {
-        if (ServiceLocator.TryGet(out IClusterSyncState clusterSyncState))
+        if (!ServiceLocator.TryGet(out IClusterSyncState clusterSyncState)) return;
+        
+        s_FollowerData = new EventBus<FrameData>(clusterSyncState);
+        switch (clusterSyncState.NodeRole)
         {
-            s_FollowerData = new EventBus<FrameData>(clusterSyncState);
-            if (clusterSyncState.NodeRole is NodeRole.Emitter)
+            case NodeRole.Emitter:
+                ClusterSyncLooper.onInstanceDoPreFrame += AwaitFrameOnEmitterNode;
+                break;
+            case NodeRole.Repeater:
             {
-                ClusterSyncLooper.onInstanceDoPreFrame += AwaitFrameEmitter;
-            }
-            else if (clusterSyncState.NodeRole is NodeRole.Repeater)
-            {
-                s_FollowerDataSubscription = s_FollowerData.Subscribe(BeginFollowerFrameRepeater);
+                s_FollowerDataSubscription = s_FollowerData.Subscribe(BeginFollowerFrameOnRepeaterNode);
                 var error = PluginEntry.instance.setFollower(1);
                 if (error is not RS_ERROR.RS_ERROR_SUCCESS)
                 {
                     ClusterDebug.Log($"Could not set follower: {error.ToString()}");
                 }
+
+                break;
             }
+            case NodeRole.Unassigned:
+                ClusterDebug.LogError("Attempting to use Cluster Display, but Cluster Display has not been initialized.");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
     }
 
     public static void UnregisterClusterDisplayEvents()
     {
-        ClusterSyncLooper.onInstanceDoPreFrame -= AwaitFrameEmitter;
+        ClusterSyncLooper.onInstanceDoPreFrame -= AwaitFrameOnEmitterNode;
         s_FollowerDataSubscription?.Dispose();
         s_FollowerData?.Dispose();
     }
     
-    static void AwaitFrameEmitter()
+    static void AwaitFrameOnEmitterNode()
     {
         DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
         
-        s_ScratchTextures.Clear();
+        k_ScratchTextures.Clear();
         RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
         if (error == RS_ERROR.RS_ERROR_QUIT)
             Application.Quit();
@@ -401,178 +409,33 @@ class DisguiseRenderStream
                 break;
         }
         newFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
-        if (newFrameData && frameData.scene < schema.scenes.Length)
+        if (newFrameData)
         {
-            
-            ManagedRemoteParameters spec = schema.scenes[frameData.scene];
-            SceneFields fields = sceneFields[frameData.scene];
-            int nNumericalParameters = 0;
-            int nImageParameters = 0;
-            int nTextParameters = 0;
-            for (int i = 0; i < spec.parameters.Length; ++i)
-            {
-                if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_NUMBER)
-                    ++nNumericalParameters;
-                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_IMAGE)
-                    ++nImageParameters;
-                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_POSE || spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TRANSFORM)
-                    nNumericalParameters += 16;
-                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TEXT)
-                    ++nTextParameters;
-            }
-
-            float[] parameters = new float[nNumericalParameters];
-            ImageFrameData[] imageData = new ImageFrameData[nImageParameters];
-            if (PluginEntry.instance.getFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.getFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
-            {
-                if (fields.numerical != null)
-                {
-                    int i = 0;
-                    foreach (var field in fields.numerical)
-                    {
-                        Type fieldType = field.FieldType;
-                        if (fieldType.IsEnum)
-                        {
-                            field.SetValue(Enum.ToObject(fieldType, Convert.ToUInt64(parameters[i])));
-                            ++i;
-                        }
-                        else if (fieldType == typeof(Vector2))
-                        {
-                            Vector2 v = new Vector2(parameters[i + 0], parameters[i + 1]);
-                            field.SetValue(v);
-                            i += 2;
-                        }
-                        else if (fieldType == typeof(Vector2Int))
-                        {
-                            Vector2Int v = new Vector2Int((int)parameters[i + 0], (int)parameters[i + 1]);
-                            field.SetValue(v);
-                            i += 2;
-                        }
-                        else if (fieldType == typeof(Vector3))
-                        {
-                            Vector3 v = new Vector3(parameters[i + 0], parameters[i + 1], parameters[i + 2]);
-                            field.SetValue(v);
-                            i += 3;
-                        }
-                        else if (fieldType == typeof(Vector3Int))
-                        {
-                            Vector3Int v = new Vector3Int((int)parameters[i + 0], (int)parameters[i + 1], (int)parameters[i + 2]);
-                            field.SetValue(v);
-                            i += 3;
-                        }
-                        else if (fieldType == typeof(Vector4))
-                        {
-                            Vector4 v = new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
-                            field.SetValue(v);
-                            i += 4;
-                        }
-                        else if (fieldType == typeof(Color))
-                        {
-                            Color v = new Color(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
-                            field.SetValue(v);
-                            i += 4;
-                        }
-                        else if (fieldType == typeof(Transform))
-                        {
-                            Matrix4x4 m = new Matrix4x4();
-                            m.SetColumn(0, new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]));
-                            m.SetColumn(1, new Vector4(parameters[i + 4], parameters[i + 5], parameters[i + 6], parameters[i + 7]));
-                            m.SetColumn(2, new Vector4(parameters[i + 8], parameters[i + 9], parameters[i + 10], parameters[i + 11]));
-                            m.SetColumn(3, new Vector4(parameters[i + 12], parameters[i + 13], parameters[i + 14], parameters[i + 15]));
-                            Transform transform = field.GetValue() as Transform;
-                            transform.localPosition = new Vector3(m[0, 3], m[1, 3], m[2, 3]);
-                            transform.localScale = m.lossyScale;
-                            transform.localRotation = m.rotation;
-                            i += 16;
-                        }
-                        else
-                        {
-                            if (field.info != null)
-                                field.SetValue(Convert.ChangeType(parameters[i], fieldType));
-                            ++i;
-                        }
-                    }
-                }
-
-                if (fields.images != null)
-                {
-                    while (s_ScratchTextures.Count < imageData.Length)
-                    {
-                        int index = s_ScratchTextures.Count;
-                        s_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
-                    }
-
-                    uint i = 0;
-                    foreach (var field in fields.images)
-                    {
-                        if (field.GetValue() is RenderTexture renderTexture)
-                        {
-                            Texture2D texture = s_ScratchTextures[(int)i];
-                            if (texture.width != imageData[i].width || texture.height != imageData[i].height || texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
-                            {
-                                s_ScratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, true);
-                                texture = s_ScratchTextures[(int)i];
-                            }
-
-                            if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
-                            {
-                                texture.IncrementUpdateCount();
-                                Graphics.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-                                renderTexture.IncrementUpdateCount();
-                            }
-                        }
-
-                        ++i;
-                    }
-                }
-
-                if (fields.texts != null)
-                {
-                    uint i = 0;
-                    foreach (var field in fields.texts)
-                    {
-                        string text = "";
-                        if (PluginEntry.instance.getFrameText(spec.hash, i, ref text) == RS_ERROR.RS_ERROR_SUCCESS)
-                        {
-                            if (field.FieldType == typeof(String[]))
-                                field.SetValue(text.Split(' '));
-                            else
-                                field.SetValue(text);
-                        }
-                    }
-
-                    ++i;
-                }
-            }
+            ProcessFrameData(frameData);
         }
     }
     
-    
-    static void BeginFollowerFrameRepeater(FrameData emitterFrameData)
+    static void BeginFollowerFrameOnRepeaterNode(FrameData emitterFrameData)
     {
-        ClusterDebug.Log($"Begin Follower {emitterFrameData.tTracked}");
         DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
-        s_ScratchTextures.Clear();
         RS_ERROR error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
         Debug.Assert(error != RS_ERROR.RS_NOT_INITIALISED);
         frameData = emitterFrameData;
-        ClusterDebug.Log($"Called beginFollowerFrame");
         if (error == RS_ERROR.RS_ERROR_QUIT)
             Application.Quit();
         if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
         {
             CreateStreams();
             error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
-            ClusterDebug.Log($"Called beginFollowerFrame (again)");
         }
 
         switch (settings.sceneControl)
         {
             case DisguiseRenderStreamSettings.SceneControl.Selection:
-                if (SceneManager.GetActiveScene().buildIndex != DisguiseRenderStream.frameData.scene)
+                if (SceneManager.GetActiveScene().buildIndex != frameData.scene)
                 {
                     newFrameData = false;
-                    SceneManager.LoadScene((int)DisguiseRenderStream.frameData.scene);
+                    SceneManager.LoadScene((int)frameData.scene);
                     return;
                 }
 
@@ -580,8 +443,161 @@ class DisguiseRenderStream
         }
 
         newFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
+        
+        if (newFrameData)
+        {
+            ProcessFrameData(frameData);
+        }
     }
 #endif
+    
+    static void ProcessFrameData(in FrameData receivedFrameData)
+    {
+        if (receivedFrameData.scene >= schema.scenes.Length) return;
+        
+        k_ScratchTextures.Clear();
+        ManagedRemoteParameters spec = schema.scenes[receivedFrameData.scene];
+        SceneFields fields = sceneFields[receivedFrameData.scene];
+        int nNumericalParameters = 0;
+        int nImageParameters = 0;
+        int nTextParameters = 0;
+        for (int i = 0; i < spec.parameters.Length; ++i)
+        {
+            if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_NUMBER)
+                ++nNumericalParameters;
+            else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_IMAGE)
+                ++nImageParameters;
+            else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_POSE || spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TRANSFORM)
+                nNumericalParameters += 16;
+            else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TEXT)
+                ++nTextParameters;
+        }
+
+        // TODO: Reduce GC allocations (use NativeArray)
+        float[] parameters = new float[nNumericalParameters];
+        ImageFrameData[] imageData = new ImageFrameData[nImageParameters];
+        if (PluginEntry.instance.getFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.getFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
+        {
+            if (fields.numerical != null)
+            {
+                int i = 0;
+                foreach (var field in fields.numerical)
+                {
+                    Type fieldType = field.FieldType;
+                    if (fieldType.IsEnum)
+                    {
+                        field.SetValue(Enum.ToObject(fieldType, Convert.ToUInt64(parameters[i])));
+                        ++i;
+                    }
+                    else if (fieldType == typeof(Vector2))
+                    {
+                        Vector2 v = new Vector2(parameters[i + 0], parameters[i + 1]);
+                        field.SetValue(v);
+                        i += 2;
+                    }
+                    else if (fieldType == typeof(Vector2Int))
+                    {
+                        Vector2Int v = new Vector2Int((int)parameters[i + 0], (int)parameters[i + 1]);
+                        field.SetValue(v);
+                        i += 2;
+                    }
+                    else if (fieldType == typeof(Vector3))
+                    {
+                        Vector3 v = new Vector3(parameters[i + 0], parameters[i + 1], parameters[i + 2]);
+                        field.SetValue(v);
+                        i += 3;
+                    }
+                    else if (fieldType == typeof(Vector3Int))
+                    {
+                        Vector3Int v = new Vector3Int((int)parameters[i + 0], (int)parameters[i + 1], (int)parameters[i + 2]);
+                        field.SetValue(v);
+                        i += 3;
+                    }
+                    else if (fieldType == typeof(Vector4))
+                    {
+                        Vector4 v = new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
+                        field.SetValue(v);
+                        i += 4;
+                    }
+                    else if (fieldType == typeof(Color))
+                    {
+                        Color v = new Color(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
+                        field.SetValue(v);
+                        i += 4;
+                    }
+                    else if (fieldType == typeof(Transform))
+                    {
+                        Matrix4x4 m = new Matrix4x4();
+                        m.SetColumn(0, new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]));
+                        m.SetColumn(1, new Vector4(parameters[i + 4], parameters[i + 5], parameters[i + 6], parameters[i + 7]));
+                        m.SetColumn(2, new Vector4(parameters[i + 8], parameters[i + 9], parameters[i + 10], parameters[i + 11]));
+                        m.SetColumn(3, new Vector4(parameters[i + 12], parameters[i + 13], parameters[i + 14], parameters[i + 15]));
+                        Transform transform = field.GetValue() as Transform;
+                        transform.localPosition = new Vector3(m[0, 3], m[1, 3], m[2, 3]);
+                        transform.localScale = m.lossyScale;
+                        transform.localRotation = m.rotation;
+                        i += 16;
+                    }
+                    else
+                    {
+                        if (field.info != null)
+                            field.SetValue(Convert.ChangeType(parameters[i], fieldType));
+                        ++i;
+                    }
+                }
+            }
+
+            if (fields.images != null)
+            {
+                while (k_ScratchTextures.Count < imageData.Length)
+                {
+                    int index = k_ScratchTextures.Count;
+                    k_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
+                }
+
+                uint i = 0;
+                foreach (var field in fields.images)
+                {
+                    if (field.GetValue() is RenderTexture renderTexture)
+                    {
+                        Texture2D texture = k_ScratchTextures[(int)i];
+                        if (texture.width != imageData[i].width || texture.height != imageData[i].height || texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
+                        {
+                            k_ScratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, true);
+                            texture = k_ScratchTextures[(int)i];
+                        }
+
+                        if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
+                        {
+                            texture.IncrementUpdateCount();
+                            Graphics.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+                            renderTexture.IncrementUpdateCount();
+                        }
+                    }
+
+                    ++i;
+                }
+            }
+
+            if (fields.texts != null)
+            {
+                uint i = 0;
+                foreach (var field in fields.texts)
+                {
+                    string text = "";
+                    if (PluginEntry.instance.getFrameText(spec.hash, i, ref text) == RS_ERROR.RS_ERROR_SUCCESS)
+                    {
+                        if (field.FieldType == typeof(String[]))
+                            field.SetValue(text.Split(' '));
+                        else
+                            field.SetValue(text);
+                    }
+                }
+
+                ++i;
+            }
+        }
+    }
     
     public static IEnumerator AwaitFrame()
     {
@@ -610,141 +626,9 @@ class DisguiseRenderStream
                     break;
             }
             newFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
-            if (newFrameData && frameData.scene < schema.scenes.Length)
+            if (newFrameData)
             {
-                ManagedRemoteParameters spec = schema.scenes[frameData.scene];
-                SceneFields fields = sceneFields[frameData.scene];
-                int nNumericalParameters = 0;
-                int nImageParameters = 0;
-                int nTextParameters = 0;
-                for (int i = 0; i < spec.parameters.Length; ++i)
-                {
-                    if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_NUMBER)
-                        ++nNumericalParameters;
-                    else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_IMAGE)
-                        ++nImageParameters;
-                    else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_POSE || spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TRANSFORM)
-                        nNumericalParameters += 16;
-                    else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TEXT)
-                        ++nTextParameters;
-                }
-                float[] parameters = new float[nNumericalParameters];
-                ImageFrameData[] imageData = new ImageFrameData[nImageParameters];
-                if (PluginEntry.instance.getFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.getFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
-                {
-                    if (fields.numerical != null)
-                    {
-                        int i = 0;
-                        foreach (var field in fields.numerical)
-                        {
-                            Type fieldType = field.FieldType;
-                            if (fieldType.IsEnum)
-                            {
-                                field.SetValue(Enum.ToObject(fieldType, Convert.ToUInt64(parameters[i])));
-                                ++i;
-                            }
-                            else if (fieldType == typeof(Vector2))
-                            {
-                                Vector2 v = new Vector2(parameters[i + 0], parameters[i + 1]);
-                                field.SetValue(v);
-                                i += 2;
-                            }
-                            else if (fieldType == typeof(Vector2Int))
-                            {
-                                Vector2Int v = new Vector2Int((int)parameters[i + 0], (int)parameters[i + 1]);
-                                field.SetValue(v);
-                                i += 2;
-                            }
-                            else if (fieldType == typeof(Vector3))
-                            {
-                                Vector3 v = new Vector3(parameters[i + 0], parameters[i + 1], parameters[i + 2]);
-                                field.SetValue(v);
-                                i += 3;
-                            }
-                            else if (fieldType == typeof(Vector3Int))
-                            {
-                                Vector3Int v = new Vector3Int((int)parameters[i + 0], (int)parameters[i + 1], (int)parameters[i + 2]);
-                                field.SetValue(v);
-                                i += 3;
-                            }
-                            else if (fieldType == typeof(Vector4))
-                            {
-                                Vector4 v = new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
-                                field.SetValue(v);
-                                i += 4;
-                            }
-                            else if (fieldType == typeof(Color))
-                            {
-                                Color v = new Color(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
-                                field.SetValue(v);
-                                i += 4;
-                            }
-                            else if (fieldType == typeof(Transform))
-                            {
-                                Matrix4x4 m = new Matrix4x4();
-                                m.SetColumn(0, new Vector4(parameters[i + 0],  parameters[i + 1],  parameters[i + 2],  parameters[i + 3]));
-                                m.SetColumn(1, new Vector4(parameters[i + 4],  parameters[i + 5],  parameters[i + 6],  parameters[i + 7]));
-                                m.SetColumn(2, new Vector4(parameters[i + 8],  parameters[i + 9],  parameters[i + 10], parameters[i + 11]));
-                                m.SetColumn(3, new Vector4(parameters[i + 12], parameters[i + 13], parameters[i + 14], parameters[i + 15]));
-                                Transform transform = field.GetValue() as Transform;
-                                transform.localPosition = new Vector3(m[0, 3], m[1, 3], m[2, 3]);
-                                transform.localScale = m.lossyScale;
-                                transform.localRotation = m.rotation;
-                                i += 16;
-                            }
-                            else
-                            {
-                                if (field.info != null)
-                                    field.SetValue(Convert.ChangeType(parameters[i], fieldType));
-                                ++i;
-                            }
-                        }
-                    }
-                    if (fields.images != null)
-                    {
-                        while (scratchTextures.Count < imageData.Length)
-                        {
-                            int index = scratchTextures.Count;
-                            scratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
-                        }
-                        uint i = 0;
-                        foreach (var field in fields.images)
-                        {
-                            if (field.GetValue() is RenderTexture renderTexture)
-                            {
-                                Texture2D texture = scratchTextures[(int)i];
-                                if (texture.width != imageData[i].width || texture.height != imageData[i].height || texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
-                                {
-                                    scratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, true);
-                                    texture = scratchTextures[(int)i];
-                                }
-                                if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
-                                {
-                                    texture.IncrementUpdateCount();
-                                    Graphics.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-                                    renderTexture.IncrementUpdateCount();
-                                }
-                            }
-                            ++i;
-                        }
-                    }
-                    if (fields.texts != null)
-                    {
-                        uint i = 0;
-                        foreach (var field in fields.texts)
-                        {
-                            string text = "";
-                            if (PluginEntry.instance.getFrameText(spec.hash, i, ref text) == RS_ERROR.RS_ERROR_SUCCESS)
-                            {
-                                if (field.FieldType == typeof(String[]))
-                                    field.SetValue(text.Split(' '));
-                                else
-                                    field.SetValue(text);
-                            }
-                        }
-                        ++i;
-                    }
-                }
+                ProcessFrameData(frameData);
             }
         }
     }
@@ -856,7 +740,6 @@ public class DisguiseCameraCapture : MonoBehaviour
         Vector2 lensShift = new Vector2(0.0f, 0.0f);
         if (m_newFrameData)
         {
-            ClusterDebug.Log("GetFrameCamera");
             cameraAspect = m_cameraData.sensorX / m_cameraData.sensorY;
 			if (m_cameraData.cameraHandle != 0)  // If no camera, only set aspect
 			{
@@ -964,7 +847,6 @@ public class DisguiseCameraCapture : MonoBehaviour
             if (m_frameSender != null)
             {
                 m_frameSender.SendFrame(DisguiseRenderStream.frameData, m_cameraData);
-                ClusterDebug.Log("SendFrame");
             }
             m_newFrameData = false;
         }
@@ -1119,15 +1001,15 @@ namespace Disguise.RenderStream
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
-    public struct FrameData
+    public readonly struct FrameData
     {
-        public double tTracked;
-        public double localTime;
-        public double localTimeDelta;
-        public UInt32 frameRateNumerator;
-        public UInt32 frameRateDenominator;
-        public UInt32 flags; // FRAMEDATA_FLAGS
-        public UInt32 scene;
+        public readonly double tTracked;
+        public readonly double localTime;
+        public readonly double localTimeDelta;
+        public readonly UInt32 frameRateNumerator;
+        public readonly UInt32 frameRateDenominator;
+        public readonly UInt32 flags; // FRAMEDATA_FLAGS
+        public readonly UInt32 scene;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
