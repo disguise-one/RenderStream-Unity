@@ -1,0 +1,860 @@
+#if UNITY_STANDALONE_WIN 
+#define PLUGIN_AVAILABLE
+#endif
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
+using UnityEngine;
+
+namespace Disguise.RenderStream
+{
+    [Serializable]
+    public sealed class PluginEntry
+    {
+        private class Nested
+        {
+            // Explicit static constructor to tell C# compiler
+            // not to mark type as beforefieldinit
+            static Nested() { }
+
+            internal static readonly PluginEntry instance = new PluginEntry();
+        }
+
+        public static PluginEntry instance { get { return Nested.instance; } }
+
+        public static TextureFormat ToTextureFormat(RSPixelFormat fmt)
+        {
+            switch (fmt)
+            {
+                case RSPixelFormat.RS_FMT_BGRA8: return TextureFormat.BGRA32;
+                case RSPixelFormat.RS_FMT_BGRX8: return TextureFormat.BGRA32;
+                case RSPixelFormat.RS_FMT_RGBA32F: return TextureFormat.RGBAFloat;
+                case RSPixelFormat.RS_FMT_RGBA16: return TextureFormat.RGBAFloat;
+                case RSPixelFormat.RS_FMT_RGBA8: return TextureFormat.RGBA32;
+                case RSPixelFormat.RS_FMT_RGBX8: return TextureFormat.RGBA32;
+                default: return TextureFormat.BGRA32;
+            }
+        }
+
+        public static RenderTextureFormat ToRenderTextureFormat(RSPixelFormat fmt)
+        {
+            switch (fmt)
+            {
+                case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGBFloat;
+                default: return RenderTextureFormat.ARGBFloat;
+            }
+        }
+
+        // isolated functions, do not require init prior to use
+        unsafe delegate void pRegisterLogFunc(logger_t logger);
+        unsafe delegate void pUnregisterLogFunc();
+
+        unsafe delegate RS_ERROR pInitialise(int expectedVersionMajor, int expectedVersionMinor);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithoutInterop(/*ID3D11Device**/ IntPtr device);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Device(/*ID3D11Device**/ IntPtr device);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithDX11Resource(/*ID3D11Resource**/ IntPtr resource);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithDX12DeviceAndQueue(/*ID3D12Device**/ IntPtr device, /*ID3D12CommandQueue**/ IntPtr queue);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithOpenGlContexts(/*HGLRC**/ IntPtr glContext, /*HDC**/ IntPtr deviceContext);
+        unsafe delegate RS_ERROR pInitialiseGpGpuWithVulkanDevice(/*VkDevice**/ IntPtr device);
+        unsafe delegate RS_ERROR pShutdown();
+
+        // non-isolated functions, these require init prior to use
+
+        unsafe delegate RS_ERROR pUseDX12SharedHeapFlag(ref UseDX12SharedHeapFlag flag);
+        unsafe delegate RS_ERROR pSaveSchema(string assetPath, /*Schema**/ IntPtr schema); // Save schema for project file/custom executable at (assetPath)
+        unsafe delegate RS_ERROR pLoadSchema(string assetPath, /*Out*/ /*Schema**/ IntPtr schema, /*InOut*/ ref UInt32 nBytes); // Load schema for project file/custom executable at (assetPath) into a buffer of size (nBytes) starting at (schema)
+
+        // workload functions, these require the process to be running inside d3's asset launcher environment
+
+        unsafe delegate RS_ERROR pSetSchema(/*InOut*/ /*Schema**/ IntPtr schema); // Set schema and fill in per-scene hash for use with rs_getFrameParameters
+
+        unsafe delegate RS_ERROR pGetStreams(/*Out*/ /*StreamDescriptions**/ IntPtr streams, /*InOut*/ ref UInt32 nBytes); // Populate streams into a buffer of size (nBytes) starting at (streams)
+
+        unsafe delegate RS_ERROR pAwaitFrameData(int timeoutMs, /*Out*/ /*FrameData**/ IntPtr data);  // waits for any asset, any stream to request a frame, provides the parameters for that frame.
+        unsafe delegate RS_ERROR pSetFollower(int isFollower); // Used to mark this node as relying on alternative mechanisms to distribute FrameData. Users must provide correct CameraResponseData to sendFrame, and call rs_beginFollowerFrame at the start of the frame, where awaitFrame would normally be called.
+        unsafe delegate RS_ERROR pBeginFollowerFrame(double tTracked); // Pass the engine-distributed tTracked value in, if you have called rs_setFollower(1) otherwise do not call this function.
+
+        unsafe delegate RS_ERROR pGetFrameParameters(UInt64 schemaHash, /*Out*/ /*void**/ IntPtr outParameterData, UInt64 outParameterDataSize);  // returns the remote parameters for this frame.
+        unsafe delegate RS_ERROR pGetFrameImageData(UInt64 schemaHash, /*Out*/ /*ImageFrameData**/ IntPtr outParameterData, UInt64 outParameterDataCount);   // returns the remote image data for this frame.
+        unsafe delegate RS_ERROR pGetFrameImage(Int64 imageId, SenderFrameType frameType, SenderFrameTypeData data); // fills in (data) with the remote image
+        unsafe delegate RS_ERROR pGetFrameText(UInt64 schemaHash, UInt32 textParamIndex, /*Out*/ /*const char***/ ref IntPtr outTextPtr); // // returns the remote text data (pointer only valid until next rs_awaitFrameData)
+
+        unsafe delegate RS_ERROR pGetFrameCamera(UInt64 streamHandle, /*Out*/ /*CameraData**/ IntPtr outCameraData);  // returns the CameraData for this stream, or RS_ERROR_NOTFOUND if no camera data is available for this stream on this frame
+        unsafe delegate RS_ERROR pSendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data, /*const CameraResponseData**/ IntPtr sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
+
+        unsafe delegate RS_ERROR pReleaseImage(SenderFrameType frameType, SenderFrameTypeData data);
+
+        unsafe delegate RS_ERROR pLogToD3(string str);
+        unsafe delegate RS_ERROR pSendProfilingData(/*ProfilingEntry**/ IntPtr entries, int count);
+        unsafe delegate RS_ERROR pSetNewStatusMessage(string msg);
+
+        pRegisterLogFunc m_registerLoggingFunc = null;
+        pRegisterLogFunc m_registerErrorLoggingFunc = null;
+        pRegisterLogFunc m_registerVerboseLoggingFunc = null;
+
+        pUnregisterLogFunc m_unregisterLoggingFunc = null;
+        pUnregisterLogFunc m_unregisterErrorLoggingFunc = null;
+        pUnregisterLogFunc m_unregisterVerboseLoggingFunc = null;
+
+        pInitialise m_initialise = null;
+        pInitialiseGpGpuWithoutInterop m_initialiseGpGpuWithoutInterop = null;
+        pInitialiseGpGpuWithDX11Device m_initialiseGpGpuWithDX11Device = null;
+        pInitialiseGpGpuWithDX11Resource m_initialiseGpGpuWithDX11Resource = null;
+        pInitialiseGpGpuWithDX12DeviceAndQueue m_initialiseGpGpuWithDX12DeviceAndQueue = null;
+        pInitialiseGpGpuWithOpenGlContexts m_initialiseGpGpuWithOpenGlContexts = null;
+        pInitialiseGpGpuWithVulkanDevice m_initialiseGpGpuWithVulkanDevice = null;
+
+        pShutdown m_shutdown = null;
+
+        pUseDX12SharedHeapFlag m_useDX12SharedHeapFlag = null;
+        pSaveSchema m_saveSchema = null;
+        pLoadSchema m_loadSchema = null;
+
+        pSetSchema m_setSchema = null;
+        pGetStreams m_getStreams = null;
+
+        pAwaitFrameData m_awaitFrameData = null;
+        pSetFollower m_setFollower = null;
+        pBeginFollowerFrame m_beginFollowerFrame = null;
+
+        pGetFrameParameters m_getFrameParameters = null;
+        pGetFrameImageData m_getFrameImageData = null;
+        pGetFrameImage m_getFrameImage = null;
+        pGetFrameText m_getFrameText = null;
+
+        pGetFrameCamera m_getFrameCamera = null;
+        pSendFrame m_sendFrame = null;
+
+        pReleaseImage m_releaseImage = null;
+
+        pLogToD3 m_logToD3 = null;
+        pSendProfilingData m_sendProfilingData = null;
+        pSetNewStatusMessage m_setNewStatusMessage = null;
+
+        logger_t m_logInfo;
+        logger_t m_logError;
+
+        void logInfo(string message)
+        {
+            Debug.Log(message);
+        }
+
+        void logError(string message)
+        {
+            Debug.LogError(message);
+        }
+
+        void logToD3(string logString, string stackTrace, LogType type)
+        {
+            if (m_logToD3 == null)
+                return;
+
+            string prefix = "";
+            switch(type)
+            {
+                case LogType.Error:
+                    prefix = "!!!!! ";
+                    break;
+                case LogType.Assert:
+                    prefix = "!!!!! ASSERT: ";
+                    break;
+                case LogType.Warning:
+                    prefix = "!!! ";
+                    break;
+                case LogType.Exception:
+                    prefix = "!!!!! Exception: ";
+                    break;
+            }
+
+            string trace = String.IsNullOrEmpty(stackTrace) ? "" : "\nTrace: " + stackTrace;
+
+            m_logToD3(prefix + logString + trace);
+        }
+
+        void setNewStatusMessage(string message)
+        {
+            m_setNewStatusMessage?.Invoke(message);
+        }
+
+        ManagedSchema schemaToManagedSchema(Schema cSchema)
+        {
+            ManagedSchema schema = new ManagedSchema();
+            schema.channels = new string[cSchema.channels.nChannels];
+            for (int i = 0; i < cSchema.channels.nChannels; ++i)
+            {
+                IntPtr channelPtr = Marshal.ReadIntPtr(cSchema.channels.channels, i * Marshal.SizeOf(typeof(IntPtr)));
+                schema.channels[i] = Marshal.PtrToStringAnsi(channelPtr);
+            }
+            schema.scenes = new ManagedRemoteParameters[cSchema.scenes.nScenes];
+            for (int i = 0; i < cSchema.scenes.nScenes; ++i)
+            {
+                schema.scenes[i] = new ManagedRemoteParameters();
+                ManagedRemoteParameters managedParameters = schema.scenes[i];
+                RemoteParameters parameters = (RemoteParameters)Marshal.PtrToStructure(cSchema.scenes.scenes + i * Marshal.SizeOf(typeof(RemoteParameters)), typeof(RemoteParameters));
+                managedParameters.name = parameters.name;
+                managedParameters.parameters = new ManagedRemoteParameter[parameters.nParameters];
+                for (int j = 0; j < parameters.nParameters; ++j)
+                {
+                    managedParameters.parameters[j] = new ManagedRemoteParameter();
+                    ManagedRemoteParameter managedParameter = managedParameters.parameters[j];
+                    RemoteParameter parameter = (RemoteParameter)Marshal.PtrToStructure(parameters.parameters + j * Marshal.SizeOf(typeof(RemoteParameter)), typeof(RemoteParameter));
+                    managedParameter.group = parameter.group;
+                    managedParameter.displayName = parameter.displayName;
+                    managedParameter.key = parameter.key;
+                    managedParameter.type = parameter.type;
+                    if (parameter.type == RemoteParameterType.RS_PARAMETER_NUMBER)
+                    {
+                        managedParameter.min = parameter.defaults.numerical_min;
+                        managedParameter.max = parameter.defaults.numerical_max;
+                        managedParameter.step = parameter.defaults.numerical_step;
+                        managedParameter.defaultValue = parameter.defaults.numerical_defaultValue;
+                    }
+                    else if (parameter.type == RemoteParameterType.RS_PARAMETER_TEXT)
+                    {
+                        managedParameter.defaultValue = Marshal.PtrToStringAnsi(parameter.defaults.text_defaultValue);
+                    }
+                    managedParameter.options = new string[parameter.nOptions];
+                    for (int k = 0; k < parameter.nOptions; ++k)
+                    {
+                        IntPtr optionPtr = Marshal.ReadIntPtr(parameter.options, k * Marshal.SizeOf(typeof(IntPtr)));
+                        managedParameter.options[i] = Marshal.PtrToStringAnsi(optionPtr);
+                    }
+                    managedParameter.dmxOffset = parameter.dmxOffset;
+                    managedParameter.dmxType = parameter.dmxType;
+                }
+                managedParameters.hash = parameters.hash;
+            }
+            return schema;
+        }
+
+        public RS_ERROR saveSchema(string assetPath, ref ManagedSchema schema)
+        {
+            if (m_saveSchema == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            List<IntPtr> allocations = new List<IntPtr>();
+            try
+            {
+                Schema cSchema = new Schema();
+                cSchema.engineName = "Unity Engine";
+                cSchema.engineVersion = Application.unityVersion;
+                cSchema.info = Application.productName;
+                cSchema.channels.nChannels = (UInt32)schema.channels.Length;
+                cSchema.channels.channels = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)cSchema.channels.nChannels);
+                allocations.Add(cSchema.channels.channels);
+                for (int i = 0; i < cSchema.channels.nChannels; ++i)
+                {
+                    IntPtr channelPtr = Marshal.StringToHGlobalAnsi(schema.channels[i]);
+                    allocations.Add(channelPtr);
+                    Marshal.WriteIntPtr(cSchema.channels.channels, i * Marshal.SizeOf(typeof(IntPtr)), channelPtr);
+                }
+
+                cSchema.scenes.nScenes = (UInt32)schema.scenes.Length;
+                cSchema.scenes.scenes = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(RemoteParameters)) * (int)cSchema.scenes.nScenes);
+                allocations.Add(cSchema.scenes.scenes);
+                for (int i = 0; i < cSchema.scenes.nScenes; ++i)
+                {
+                    ManagedRemoteParameters managedParameters = schema.scenes[i];
+                    RemoteParameters parameters = new RemoteParameters();
+                    parameters.name = managedParameters.name;
+                    parameters.nParameters = (UInt32)managedParameters.parameters.Length;
+                    parameters.parameters = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(RemoteParameter)) * (int)parameters.nParameters);
+                    allocations.Add(parameters.parameters);
+                    for (int j = 0; j < parameters.nParameters; ++j)
+                    {
+                        ManagedRemoteParameter managedParameter = managedParameters.parameters[j];
+                        RemoteParameter parameter = new RemoteParameter();
+                        parameter.group = managedParameter.group;
+                        parameter.displayName = managedParameter.displayName;
+                        parameter.key = managedParameter.key;
+                        parameter.type = managedParameter.type;
+                        if (parameter.type == RemoteParameterType.RS_PARAMETER_NUMBER)
+                        {
+                            parameter.defaults.numerical_min = managedParameter.min;
+                            parameter.defaults.numerical_max = managedParameter.max;
+                            parameter.defaults.numerical_step = managedParameter.step;
+                            parameter.defaults.numerical_defaultValue = Convert.ToSingle(managedParameter.defaultValue);
+                        }
+                        else if (parameter.type == RemoteParameterType.RS_PARAMETER_TEXT)
+                        {
+                            IntPtr textPtr = Marshal.StringToHGlobalAnsi(Convert.ToString(managedParameter.defaultValue));
+                            allocations.Add(textPtr);
+                            parameter.defaults.text_defaultValue = textPtr;
+                        }
+                        parameter.nOptions = (UInt32)managedParameter.options.Length;
+                        parameter.options = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)parameter.nOptions);
+                        allocations.Add(parameter.options);
+                        for (int k = 0; k < parameter.nOptions; ++k)
+                        {
+                            IntPtr optionPtr = Marshal.StringToHGlobalAnsi(managedParameter.options[k]);
+                            allocations.Add(optionPtr);
+                            Marshal.WriteIntPtr(parameter.options, k * Marshal.SizeOf(typeof(IntPtr)), optionPtr);
+                        }
+                        parameter.dmxOffset = managedParameter.dmxOffset;
+                        parameter.dmxType = managedParameter.dmxType;
+                        Marshal.StructureToPtr(parameter, parameters.parameters + j * Marshal.SizeOf(typeof(RemoteParameter)), false);
+                    }
+                    Marshal.StructureToPtr(parameters, cSchema.scenes.scenes + i * Marshal.SizeOf(typeof(RemoteParameters)), false);
+                }
+
+                IntPtr schemaPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Schema)));
+                allocations.Add(schemaPtr);
+                Marshal.StructureToPtr(cSchema, schemaPtr, false);
+                RS_ERROR error = m_saveSchema(assetPath, schemaPtr);
+                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                {
+                    cSchema = (Schema)Marshal.PtrToStructure(schemaPtr, typeof(Schema));
+                    schema = schemaToManagedSchema(cSchema);
+                }
+                return error;
+            }
+            finally
+            {
+                foreach (IntPtr ptr in allocations)
+                    Marshal.FreeHGlobal(ptr);
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR loadSchema(string assetPath, ref ManagedSchema schema)
+        {
+            if (m_loadSchema == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            IntPtr descMem = IntPtr.Zero;
+            UInt32 nBytes = 0;
+            m_loadSchema(assetPath, descMem, ref nBytes);
+
+            const int MAX_TRIES = 3;
+            int iterations = 0;
+
+            RS_ERROR res = RS_ERROR.RS_ERROR_BUFFER_OVERFLOW;
+            try
+            {
+                do
+                {
+                    Marshal.FreeHGlobal(descMem);
+                    descMem = Marshal.AllocHGlobal((int)nBytes);
+                    res = m_loadSchema(assetPath, descMem, ref nBytes);
+                    if (res == RS_ERROR.RS_ERROR_SUCCESS)
+                    {
+                        Schema cSchema = (Schema)Marshal.PtrToStructure(descMem, typeof(Schema));
+                        schema = schemaToManagedSchema(cSchema);
+                    }
+
+                    ++iterations;
+                } while (res == RS_ERROR.RS_ERROR_BUFFER_OVERFLOW && iterations < MAX_TRIES);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(descMem);
+            }
+            return res;
+        }
+
+        public RS_ERROR getStreams(ref StreamDescription[] streams)
+        {
+            if (m_getStreams == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            IntPtr descMem = IntPtr.Zero;
+            UInt32 nBytes = 0;
+            m_getStreams(descMem, ref nBytes);
+
+            const int MAX_TRIES = 3;
+            int iterations = 0;
+
+            RS_ERROR res = RS_ERROR.RS_ERROR_BUFFER_OVERFLOW;
+            try
+            {
+                do
+                {
+                    Marshal.FreeHGlobal(descMem);
+                    descMem = Marshal.AllocHGlobal((int)nBytes);
+                    res = m_getStreams(descMem, ref nBytes);
+                    if (res == RS_ERROR.RS_ERROR_SUCCESS)
+                    {
+                        StreamDescriptions desc = (StreamDescriptions)Marshal.PtrToStructure(descMem, typeof(StreamDescriptions));
+                        streams = new StreamDescription[desc.nStreams];
+                        for (int i = 0; i < desc.nStreams; ++i)
+                        {
+                            IntPtr current = desc.streams + i * Marshal.SizeOf(typeof(StreamDescription));
+                            streams[i] = (StreamDescription)Marshal.PtrToStructure(current, typeof(StreamDescription));
+                        }
+                    }
+
+                    ++iterations;
+                } while (res == RS_ERROR.RS_ERROR_BUFFER_OVERFLOW && iterations < MAX_TRIES);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(descMem);
+            }
+            return res;
+        }
+
+        public RS_ERROR sendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data, FrameResponseData sendData)
+        {
+            if (m_sendFrame == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+            handleReference = GCHandle.Alloc(sendData, GCHandleType.Pinned);
+            
+            try
+            {
+                RS_ERROR error = m_sendFrame(streamHandle, frameType, data, handleReference.AddrOfPinnedObject());
+                return error;
+            }
+            finally
+            {
+                if (handleReference.IsAllocated)
+                    handleReference.Free();
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR awaitFrameData(int timeoutMs, ref FrameData data)
+        {
+            if (m_awaitFrameData == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+            handleReference = GCHandle.Alloc(data, GCHandleType.Pinned);
+            try
+            {
+                RS_ERROR error = m_awaitFrameData(timeoutMs, handleReference.AddrOfPinnedObject());
+                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                {
+                    data = (FrameData)Marshal.PtrToStructure(handleReference.AddrOfPinnedObject(), typeof(FrameData));
+                }
+                return error;
+            }
+            finally
+            {
+                if (handleReference.IsAllocated)
+                    handleReference.Free();
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR setFollower(int isFollower)
+        {
+            if (m_setFollower == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            try
+            {
+                RS_ERROR error = m_setFollower(isFollower);
+                return error;
+            }
+            finally
+            {
+            }
+        }
+
+        public RS_ERROR beginFollowerFrame(double tTracked)
+        {
+            if (m_beginFollowerFrame == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            try
+            {
+                RS_ERROR error = m_beginFollowerFrame(tTracked);
+                return error;
+            }
+            finally
+            {
+            }
+        }
+
+        public RS_ERROR getFrameParameters(UInt64 schemaHash, ref float[] outParameterData)
+        {
+            if (m_getFrameParameters == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+            handleReference = GCHandle.Alloc(outParameterData, GCHandleType.Pinned);
+            try
+            {
+                RS_ERROR error = m_getFrameParameters(schemaHash, handleReference.AddrOfPinnedObject(), (UInt64)outParameterData.Length * sizeof(float));
+                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                {
+                    Marshal.Copy(handleReference.AddrOfPinnedObject(), outParameterData, 0, outParameterData.Length);
+                }
+                return error;
+            }
+            finally
+            {
+                if (handleReference.IsAllocated)
+                    handleReference.Free();
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR getFrameImageData(UInt64 schemaHash, ref ImageFrameData[] outParameterData)
+        {
+            if (m_getFrameImageData == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+            handleReference = GCHandle.Alloc(outParameterData, GCHandleType.Pinned);
+            try
+            {
+                var size = Marshal.SizeOf(typeof(ImageFrameData));
+                RS_ERROR error = m_getFrameImageData(schemaHash, handleReference.AddrOfPinnedObject(), (UInt64)outParameterData.Length);
+                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                {
+                    for (int i = 0; i < outParameterData.Length; ++i)
+                    {
+                        IntPtr ptr = new IntPtr(handleReference.AddrOfPinnedObject().ToInt64() + i * size);
+                        outParameterData[i] = Marshal.PtrToStructure<ImageFrameData>(ptr);
+                    }
+                }
+                return error;
+            }
+            finally
+            {
+                if (handleReference.IsAllocated)
+                    handleReference.Free();
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR getFrameImage(Int64 imageId, ref Texture2D texture)
+        {
+            if (m_getFrameImage == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            try
+            {
+                SenderFrameTypeData data = new SenderFrameTypeData();
+                data.dx11_resource = texture.GetNativeTexturePtr();
+                RS_ERROR error = m_getFrameImage(imageId, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data);
+                return error;
+            }
+            finally
+            {
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR getFrameText(UInt64 schemaHash, UInt32 textParamIndex, ref string text)
+        {
+            if (m_getFrameText == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            try
+            {
+                IntPtr textPtr = IntPtr.Zero;
+                RS_ERROR error = m_getFrameText(schemaHash, textParamIndex, ref textPtr);
+                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                    text = Marshal.PtrToStringAnsi(textPtr);
+                return error;
+            }
+            finally
+            {
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+        public RS_ERROR getFrameCamera(UInt64 streamHandle, ref CameraData outCameraData)
+        {
+            if (m_getFrameCamera == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+            handleReference = GCHandle.Alloc(outCameraData, GCHandleType.Pinned);
+            try
+            {
+                RS_ERROR error = m_getFrameCamera(streamHandle, handleReference.AddrOfPinnedObject());
+                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                {
+                    outCameraData = (CameraData)Marshal.PtrToStructure(handleReference.AddrOfPinnedObject(), typeof(CameraData));
+                }
+                return error;
+            }
+            finally
+            {
+                if (handleReference.IsAllocated)
+                    handleReference.Free();
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+
+#if PLUGIN_AVAILABLE
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr LoadLibraryEx(string lpLibFileName, IntPtr fileHandle, int flags);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
+        static extern bool FreeLibrary(IntPtr hModule);
+
+        private void free()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.quitting -= free;
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= free;
+#else
+            Application.quitting -= free;
+#endif
+
+            if (functionsLoaded)
+            {
+                if (m_logToD3 != null)
+                    Application.logMessageReceivedThreaded -= logToD3;
+
+                if (m_unregisterErrorLoggingFunc != null)
+                    m_unregisterErrorLoggingFunc();
+                if (m_unregisterLoggingFunc != null)
+                    m_unregisterLoggingFunc();
+
+                RS_ERROR error = m_shutdown();
+                if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                    Debug.LogError(string.Format("Failed to shutdown: {0}", error));
+                functionsLoaded = false;
+                Debug.Log("Shut down RenderStream");
+            }
+
+            if (d3RenderStreamDLL != IntPtr.Zero)
+            {
+                FreeLibrary(d3RenderStreamDLL);
+                d3RenderStreamDLL = IntPtr.Zero;
+                Debug.Log("Unloaded RenderStream");
+            }
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+        }
+
+        public bool IsAvailable
+        {
+            get
+            {
+                UnityEngine.Rendering.GraphicsDeviceType gapi = UnityEngine.SystemInfo.graphicsDeviceType;
+                return functionsLoaded && (gapi == UnityEngine.Rendering.GraphicsDeviceType.Direct3D11);
+            }
+        }
+#else
+        private void free() {}
+        public bool IsAvailable { get { return false; } }
+#endif
+
+        const int LOAD_IGNORE_CODE_AUTHZ_LEVEL = 0x00000010;
+        const int LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR = 0x00000100;
+        const int LOAD_LIBRARY_SEARCH_APPLICATION_DIR = 0x00000200;
+        const int LOAD_LIBRARY_SEARCH_USER_DIRS = 0x00000400;
+        const int LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
+
+        const string _dllName = "d3renderstream";
+
+        const int RENDER_STREAM_VERSION_MAJOR = 1;
+        const int RENDER_STREAM_VERSION_MINOR = 30;
+
+        bool functionsLoaded = false;
+        IntPtr d3RenderStreamDLL = IntPtr.Zero;
+        GCHandle handleReference; // Everything is run under coroutines with odd lifetimes, so store a reference to GCHandle
+
+        string name;
+
+        // https://answers.unity.com/questions/16804/retrieving-project-name.html?childToView=478633#answer-478633
+        public string GetProjectName()
+        {
+            string[] s = Application.dataPath.Split('/');
+            if (s.Length >= 2)
+            {
+                string projectName = s[s.Length - 2];
+                return projectName;
+            }
+            return "UNKNOWN UNITY PROJECT";
+        }
+
+        private bool LoadFn<T>(ref T fn, string fnName) where T : Delegate
+        {
+            fn = DelegateBuilder<T>(d3RenderStreamDLL, fnName);
+            if (fn == null)
+            {
+                Debug.LogError(string.Format("Failed load function \"{0}\" from {1}.dll", fnName, _dllName));
+                return false;
+            }
+            return true;
+        }
+
+        private PluginEntry()
+        {
+#if PLUGIN_AVAILABLE
+            RegistryKey d3Key = Registry.CurrentUser.OpenSubKey("Software");
+            if (d3Key != null)
+            {
+                d3Key = d3Key.OpenSubKey("d3 Technologies");
+                if (d3Key != null)
+                {
+                    d3Key = d3Key.OpenSubKey("d3 Production Suite");
+                }
+            }
+
+            if (d3Key == null)
+            {
+                Debug.LogError(string.Format("Failed to find path to {0}.dll. d3 Not installed?", _dllName));
+                return;
+            }
+
+            string d3ExePath = d3Key.GetValue("exe path").ToString();
+            d3ExePath = d3ExePath.Replace(@"\\", @"\");
+            int endSeparator = d3ExePath.LastIndexOf(Path.DirectorySeparatorChar);
+            if (endSeparator != d3ExePath.Length - 1)
+                d3ExePath = d3ExePath.Substring(0, endSeparator + 1);
+
+            string libPath = d3ExePath + _dllName + ".dll";
+            d3RenderStreamDLL = LoadWin32Library(libPath);
+            if (d3RenderStreamDLL == IntPtr.Zero)
+            {
+                Debug.LogError(string.Format("Failed to load {0}.dll from {1}", _dllName, d3ExePath));
+                return;
+            }
+            
+            functionsLoaded = true;
+
+            functionsLoaded &= LoadFn(ref m_registerLoggingFunc, "rs_registerLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_registerErrorLoggingFunc, "rs_registerErrorLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_registerVerboseLoggingFunc, "rs_registerVerboseLoggingFunc");
+
+            functionsLoaded &= LoadFn(ref m_unregisterLoggingFunc, "rs_unregisterLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_unregisterErrorLoggingFunc, "rs_unregisterErrorLoggingFunc");
+            functionsLoaded &= LoadFn(ref m_unregisterVerboseLoggingFunc, "rs_unregisterVerboseLoggingFunc");
+
+            functionsLoaded &= LoadFn(ref m_initialise, "rs_initialise");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithoutInterop, "rs_initialiseGpGpuWithoutInterop");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithDX11Device, "rs_initialiseGpGpuWithDX11Device");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithDX11Resource, "rs_initialiseGpGpuWithDX11Resource");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithDX12DeviceAndQueue, "rs_initialiseGpGpuWithDX12DeviceAndQueue");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithOpenGlContexts, "rs_initialiseGpGpuWithOpenGlContexts");
+            functionsLoaded &= LoadFn(ref m_initialiseGpGpuWithVulkanDevice, "rs_initialiseGpGpuWithVulkanDevice");
+            functionsLoaded &= LoadFn(ref m_shutdown, "rs_shutdown");
+
+            functionsLoaded &= LoadFn(ref m_useDX12SharedHeapFlag, "rs_useDX12SharedHeapFlag");
+            functionsLoaded &= LoadFn(ref m_saveSchema, "rs_saveSchema");
+            functionsLoaded &= LoadFn(ref m_loadSchema, "rs_loadSchema");
+
+            functionsLoaded &= LoadFn(ref m_setSchema, "rs_setSchema");
+
+            functionsLoaded &= LoadFn(ref m_getStreams, "rs_getStreams");
+
+            functionsLoaded &= LoadFn(ref m_awaitFrameData, "rs_awaitFrameData");
+            functionsLoaded &= LoadFn(ref m_setFollower, "rs_setFollower");
+            functionsLoaded &= LoadFn(ref m_beginFollowerFrame, "rs_beginFollowerFrame");
+
+            functionsLoaded &= LoadFn(ref m_getFrameParameters, "rs_getFrameParameters");
+            functionsLoaded &= LoadFn(ref m_getFrameImageData, "rs_getFrameImageData");
+            functionsLoaded &= LoadFn(ref m_getFrameImage, "rs_getFrameImage");
+            functionsLoaded &= LoadFn(ref m_getFrameText, "rs_getFrameText");
+
+            functionsLoaded &= LoadFn(ref m_getFrameCamera, "rs_getFrameCamera");
+            functionsLoaded &= LoadFn(ref m_sendFrame, "rs_sendFrame");
+
+            functionsLoaded &= LoadFn(ref m_releaseImage, "rs_releaseImage");
+
+            functionsLoaded &= LoadFn(ref m_logToD3, "rs_logToD3");
+            functionsLoaded &= LoadFn(ref m_sendProfilingData, "rs_sendProfilingData");
+            functionsLoaded &= LoadFn(ref m_setNewStatusMessage, "rs_setNewStatusMessage");
+
+            if (!functionsLoaded)
+            {
+                Debug.LogError(string.Format("One or more functions failed load from {0}.dll", _dllName));
+                return;
+            }
+
+            // There is an issue with these logging callbacks sometimes throwing inside of the dll which can cause all kinds of problems
+            // exception consistentency is questionable, often the same exception can be seen at the same point in time
+            // however periodically a minor difference may occur where the exception is not thrown where expected or even at all
+
+            m_logInfo = logInfo;
+            m_logError = logError;
+
+            if (m_registerLoggingFunc != null)
+                m_registerLoggingFunc(m_logInfo);
+            if (m_registerErrorLoggingFunc != null)
+                m_registerErrorLoggingFunc(m_logError);
+
+            if (m_logToD3 != null)
+                Application.logMessageReceivedThreaded += logToD3;
+
+            RS_ERROR error = m_initialise(RENDER_STREAM_VERSION_MAJOR, RENDER_STREAM_VERSION_MINOR);
+            if (error == RS_ERROR.RS_ERROR_INCOMPATIBLE_VERSION)
+                Debug.LogError(string.Format("Unsupported RenderStream library, expected version {0}.{1}", RENDER_STREAM_VERSION_MAJOR, RENDER_STREAM_VERSION_MINOR));
+            else if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                Debug.LogError(string.Format("Failed to initialise: {0}", error));
+            else
+            {
+                Texture2D texture = new Texture2D(1, 1);
+                error = m_initialiseGpGpuWithDX11Resource(texture.GetNativeTexturePtr());
+                if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                    Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
+            }
+
+            Debug.Log("Loaded RenderStream");
+
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.quitting += free;
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += free;
+#else
+            Application.quitting += free;
+#endif
+
+            name = GetProjectName();
+#else
+            Debug.LogError(string.Format("{0}.dll is only available on Windows", _dllName));
+#endif
+        }
+
+        ~PluginEntry()
+        {
+            free();
+        }
+
+        static IntPtr LoadWin32Library(string dllFilePath)
+        {
+            System.IntPtr moduleHandle = IntPtr.Zero ;
+#if PLUGIN_AVAILABLE
+            moduleHandle = LoadLibraryEx(dllFilePath, IntPtr.Zero, LOAD_IGNORE_CODE_AUTHZ_LEVEL | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
+            if (moduleHandle == IntPtr.Zero)
+            {
+                // I'm gettin last dll error
+                int errorCode = Marshal.GetLastWin32Error();
+                Debug.LogError(string.Format("There was an error during dll loading : {0}, error - {1}", dllFilePath, errorCode));
+            }
+#endif
+            return moduleHandle;
+        }
+
+        static T DelegateBuilder<T>(IntPtr loadedDLL, string functionName) where T : Delegate
+        {
+            IntPtr pAddressOfFunctionToCall = IntPtr.Zero;
+#if PLUGIN_AVAILABLE
+            pAddressOfFunctionToCall = GetProcAddress(loadedDLL, functionName);
+            if (pAddressOfFunctionToCall == IntPtr.Zero)
+            {
+                return null;
+            }
+#endif
+            T functionDelegate = Marshal.GetDelegateForFunctionPointer(pAddressOfFunctionToCall, typeof(T)) as T;
+            return functionDelegate;
+        }
+    }
+}
