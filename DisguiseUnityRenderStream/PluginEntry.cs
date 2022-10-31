@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace Disguise.RenderStream
@@ -501,6 +503,34 @@ namespace Disguise.RenderStream
                     handleReference.Free();
             }
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+        
+        public RS_ERROR GetFrameParameters(UInt64 schemaHash, ref NativeArray<float> outParameterData)
+        {
+            if (m_getFrameParameters == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            Debug.Assert(outParameterData.IsCreated);
+            unsafe
+            {
+                RS_ERROR error = m_getFrameParameters(schemaHash,
+                    (IntPtr)outParameterData.GetUnsafePtr(),
+                    (ulong)outParameterData.Length * sizeof(float));
+                return error;   
+            }
+        }
+        
+        public RS_ERROR GetFrameImageData(UInt64 schemaHash, ref NativeArray<ImageFrameData> outParameterData)
+        {
+            if (m_getFrameImageData == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            Debug.Assert(outParameterData.IsCreated);
+            unsafe
+            {
+                RS_ERROR error = m_getFrameImageData(schemaHash, (IntPtr)outParameterData.GetUnsafePtr(), (UInt64)outParameterData.Length);
+                return error;
+            }
         }
 
         public RS_ERROR getFrameImageData(UInt64 schemaHash, ref ImageFrameData[] outParameterData)

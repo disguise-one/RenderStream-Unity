@@ -100,7 +100,6 @@ namespace Disguise.RenderStream
                     {
                         newFrameData = false;
                         SceneManager.LoadScene((int)frameData.scene);
-                        return;
                     }
 
                     break;

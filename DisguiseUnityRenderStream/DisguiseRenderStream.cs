@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -239,10 +239,9 @@ namespace Disguise.RenderStream
                     ++nTextParameters;
             }
 
-            // TODO: Reduce GC allocations (use NativeArray)
-            float[] parameters = new float[nNumericalParameters];
-            ImageFrameData[] imageData = new ImageFrameData[nImageParameters];
-            if (PluginEntry.instance.getFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.getFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
+            var parameters = new NativeArray<float>(nNumericalParameters, Allocator.Temp);
+            var imageData = new NativeArray<ImageFrameData>(nImageParameters, Allocator.Temp);
+            if (PluginEntry.instance.GetFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.GetFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
             {
                 if (fields.numerical != null)
                 {
@@ -321,16 +320,19 @@ namespace Disguise.RenderStream
                         k_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
                     }
 
-                    uint i = 0;
+                    int i = 0;
                     foreach (var field in fields.images)
                     {
                         if (field.GetValue() is RenderTexture renderTexture)
                         {
-                            Texture2D texture = k_ScratchTextures[(int)i];
-                            if (texture.width != imageData[i].width || texture.height != imageData[i].height || texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
+                            Texture2D texture = k_ScratchTextures[i];
+                            if (texture.width != imageData[i].width || texture.height != imageData[i].height ||
+                                texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
                             {
-                                k_ScratchTextures[(int)i] = new Texture2D((int)imageData[i].width, (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false, true);
-                                texture = k_ScratchTextures[(int)i];
+                                k_ScratchTextures[i] = new Texture2D((int)imageData[i].width,
+                                    (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false,
+                                    true);
+                                texture = k_ScratchTextures[i];
                             }
 
                             if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
@@ -363,6 +365,9 @@ namespace Disguise.RenderStream
                     ++i;
                 }
             }
+
+            parameters.Dispose();
+            imageData.Dispose();
         }
     
         public static IEnumerator AwaitFrame()
@@ -370,11 +375,13 @@ namespace Disguise.RenderStream
             if (awaiting)
                 yield break;
             awaiting = true;
+            
+            var waitForEndOfFrame = new WaitForEndOfFrame();
+            
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
-            List<Texture2D> scratchTextures = new List<Texture2D>();
             while (true)
             {
-                yield return new WaitForEndOfFrame();
+                yield return waitForEndOfFrame;
                 RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
                 if (error == RS_ERROR.RS_ERROR_QUIT)
                     Application.Quit();
@@ -423,37 +430,7 @@ namespace Disguise.RenderStream
 
         static private GameObject[] cameras = { };
         static private ManagedSchema schema = new ManagedSchema();
-        static bool schemaDirty = false;
-        
-        public class ObjectField
-        {
-            public object target;
-            public MemberInfo info;
-            public Type FieldType { 
-                get {
-                    if (info is FieldInfo fieldInfo)
-                        return fieldInfo.FieldType;
-                    else if (info is PropertyInfo propertyInfo)
-                        return propertyInfo.PropertyType;
-                    return typeof(void);
-                }
-            }
-            public void SetValue(object value)
-            {
-                if (info is FieldInfo fieldInfo)
-                    fieldInfo.SetValue(target, value);
-                else if (info is PropertyInfo propertyInfo)
-                    propertyInfo.SetValue(target, value);
-            }
-            public object GetValue()
-            {
-                if (info is FieldInfo fieldInfo)
-                    return fieldInfo.GetValue(target);
-                else if (info is PropertyInfo propertyInfo)
-                    return propertyInfo.GetValue(target);
-                return null;
-            }
-        }
+
         public struct SceneFields
         {
             public List<ObjectField> numerical;

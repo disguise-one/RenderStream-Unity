@@ -9,6 +9,10 @@ using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 using System.Runtime.Remoting;
 
+#if ENABLE_CLUSTER_DISPLAY
+using Unity.ClusterDisplay;
+#endif
+
 namespace Disguise.RenderStream
 {
     using StreamHandle = UInt64;
@@ -179,11 +183,20 @@ namespace Disguise.RenderStream
             m_frameSender = new Disguise.RenderStream.FrameSender(gameObject.name, m_camera);
             RenderPipelineManager.endFrameRendering += RenderPipelineManager_endFrameRendering;
 
-#if !ENABLE_CLUSTER_DISPLAY
-        if (Application.isPlaying == false)
-            yield break;
-        if (!DisguiseRenderStream.awaiting)
-            yield return StartCoroutine(DisguiseRenderStream.AwaitFrame());
+#if ENABLE_CLUSTER_DISPLAY
+            if (!ClusterDisplayState.GetIsClusterLogicEnabled())
+            {
+                // TODO: Warn that cluster display is not enabled
+                if (Application.isPlaying == false)
+                    yield break;
+                if (!DisguiseRenderStream.awaiting)
+                    yield return StartCoroutine(DisguiseRenderStream.AwaitFrame());
+            }
+#else
+            if (Application.isPlaying == false)
+                yield break;
+            if (!DisguiseRenderStream.awaiting)
+                yield return StartCoroutine(DisguiseRenderStream.AwaitFrame());
 #endif
         }
 
