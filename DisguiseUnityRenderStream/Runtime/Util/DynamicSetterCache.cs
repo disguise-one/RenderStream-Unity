@@ -6,13 +6,14 @@ using System.Reflection.Emit;
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// Contains a dynamically-generated collection of methods to set a property or field
+    /// Contains a dynamically-generated collection of delegates to set a property or field
     /// of a given type.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <remarks>
     /// This class can be used to avoid boxing operations for calling property or field
-    /// setters when the parameter type is defined statically.
+    /// setters when the parameter type is unknown at compile-time, resulting in better
+    /// performance.
     /// </remarks>
     static class DynamicSetterCache<T>
     {
@@ -28,7 +29,7 @@ namespace Disguise.RenderStream
                     typeof(T)
                 });
             var gen = newMethod.GetILGenerator();
-            
+
             if (!k_Cache.TryGetValue(member, out var setter))
             {
                 switch (member)
@@ -60,53 +61,6 @@ namespace Disguise.RenderStream
             }
 
             return setter;
-        }
-    }
-
-    class ObjectField
-    {
-        public object target;
-        public MemberInfo info;
-
-        public Type FieldType =>
-            info switch
-            {
-                FieldInfo fieldInfo => fieldInfo.FieldType,
-                PropertyInfo propertyInfo => propertyInfo.PropertyType,
-                _ => typeof(void)
-            };
-
-        public void SetValue(object value)
-        {
-            switch (info)
-            {
-                case FieldInfo fieldInfo:
-                    fieldInfo.SetValue(target, value);
-                    break;
-                case PropertyInfo propertyInfo:
-                    propertyInfo.SetValue(target, value);
-                    break;
-            }
-        }
-
-        public object GetValue()
-        {
-            return info switch
-            {
-                FieldInfo fieldInfo => fieldInfo.GetValue(target),
-                PropertyInfo propertyInfo => propertyInfo.GetValue(target),
-                _ => null
-            };
-        }
-
-        public void SetValue<T>(T value)
-        {
-#if ENABLE_IL2CPP
-            return SetValue((object)value);
-#else
-            var getter = DynamicSetterCache<T>.GetSetter(info);
-            getter.Invoke(target, value);
-#endif
         }
     }
 }
