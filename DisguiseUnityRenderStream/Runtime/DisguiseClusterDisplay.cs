@@ -52,7 +52,6 @@ namespace Disguise.RenderStream
         {
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
         
-            k_ScratchTextures.Clear();
             RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
             if (error == RS_ERROR.RS_ERROR_QUIT)
                 Application.Quit();

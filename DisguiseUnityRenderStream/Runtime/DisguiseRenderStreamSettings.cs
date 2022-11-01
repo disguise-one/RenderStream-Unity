@@ -14,6 +14,8 @@ class DisguiseRenderStreamSettings : ScriptableObject
     [SerializeField]
     public SceneControl sceneControl;
 
+    static DisguiseRenderStreamSettings s_CachedSettings;
+    
 #if UNITY_EDITOR
     [UnityEditor.Callbacks.DidReloadScripts]
     private static void OnReloadScripts()
@@ -25,19 +27,23 @@ class DisguiseRenderStreamSettings : ScriptableObject
 
     public static DisguiseRenderStreamSettings GetOrCreateSettings()
     {
-        var settings = Resources.Load<DisguiseRenderStreamSettings>("DisguiseRenderStreamSettings");
-        if (settings == null)
+        if (s_CachedSettings == null)
+        {
+            s_CachedSettings = Resources.Load<DisguiseRenderStreamSettings>("DisguiseRenderStreamSettings");
+        }
+        
+        if (s_CachedSettings == null)
         {
             Debug.Log("Using default DisguiseRenderStreamSettings");
-            settings = ScriptableObject.CreateInstance<DisguiseRenderStreamSettings>();
-            settings.sceneControl = SceneControl.Manual;
+            s_CachedSettings = ScriptableObject.CreateInstance<DisguiseRenderStreamSettings>();
+            s_CachedSettings.sceneControl = SceneControl.Manual;
 #if UNITY_EDITOR
             if (!Directory.Exists("Assets/Resources"))
                 Directory.CreateDirectory("Assets/Resources");
-            UnityEditor.AssetDatabase.CreateAsset(settings, "Assets/Resources/DisguiseRenderStreamSettings.asset");
+            UnityEditor.AssetDatabase.CreateAsset(s_CachedSettings, "Assets/Resources/DisguiseRenderStreamSettings.asset");
             UnityEditor.AssetDatabase.SaveAssets();
 #endif
         }
-        return settings;
+        return s_CachedSettings;
     }
 }

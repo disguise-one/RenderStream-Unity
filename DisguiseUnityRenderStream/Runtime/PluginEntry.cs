@@ -80,7 +80,7 @@ namespace Disguise.RenderStream
 
         unsafe delegate RS_ERROR pGetStreams(/*Out*/ /*StreamDescriptions**/ IntPtr streams, /*InOut*/ ref UInt32 nBytes); // Populate streams into a buffer of size (nBytes) starting at (streams)
 
-        unsafe delegate RS_ERROR pAwaitFrameData(int timeoutMs, /*Out*/ /*FrameData**/ IntPtr data);  // waits for any asset, any stream to request a frame, provides the parameters for that frame.
+        unsafe delegate RS_ERROR pAwaitFrameData(int timeoutMs,  /*Out*/ ref FrameData data);  // waits for any asset, any stream to request a frame, provides the parameters for that frame.
         unsafe delegate RS_ERROR pSetFollower(int isFollower); // Used to mark this node as relying on alternative mechanisms to distribute FrameData. Users must provide correct CameraResponseData to sendFrame, and call rs_beginFollowerFrame at the start of the frame, where awaitFrame would normally be called.
         unsafe delegate RS_ERROR pBeginFollowerFrame(double tTracked); // Pass the engine-distributed tTracked value in, if you have called rs_setFollower(1) otherwise do not call this function.
 
@@ -89,8 +89,8 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pGetFrameImage(Int64 imageId, SenderFrameType frameType, SenderFrameTypeData data); // fills in (data) with the remote image
         unsafe delegate RS_ERROR pGetFrameText(UInt64 schemaHash, UInt32 textParamIndex, /*Out*/ /*const char***/ ref IntPtr outTextPtr); // // returns the remote text data (pointer only valid until next rs_awaitFrameData)
 
-        unsafe delegate RS_ERROR pGetFrameCamera(UInt64 streamHandle, /*Out*/ /*CameraData**/ IntPtr outCameraData);  // returns the CameraData for this stream, or RS_ERROR_NOTFOUND if no camera data is available for this stream on this frame
-        unsafe delegate RS_ERROR pSendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data, /*const CameraResponseData**/ IntPtr sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
+        unsafe delegate RS_ERROR pGetFrameCamera(UInt64 streamHandle, /*Out*/ ref CameraData outCameraData);  // returns the CameraData for this stream, or RS_ERROR_NOTFOUND if no camera data is available for this stream on this frame
+        unsafe delegate RS_ERROR pSendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data,  /*In*/ ref FrameResponseData sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
 
         unsafe delegate RS_ERROR pReleaseImage(SenderFrameType frameType, SenderFrameTypeData data);
 
@@ -403,26 +403,12 @@ namespace Disguise.RenderStream
             return res;
         }
 
-        public RS_ERROR sendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data, FrameResponseData sendData)
+        public RS_ERROR sendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data, ref FrameResponseData sendData)
         {
             if (m_sendFrame == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
-
-            if (handleReference.IsAllocated)
-                handleReference.Free();
-            handleReference = GCHandle.Alloc(sendData, GCHandleType.Pinned);
-            
-            try
-            {
-                RS_ERROR error = m_sendFrame(streamHandle, frameType, data, handleReference.AddrOfPinnedObject());
-                return error;
-            }
-            finally
-            {
-                if (handleReference.IsAllocated)
-                    handleReference.Free();
-            }
-            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+            RS_ERROR error = m_sendFrame(streamHandle, frameType, data, ref sendData);
+            return error;
         }
 
         public RS_ERROR awaitFrameData(int timeoutMs, ref FrameData data)
@@ -430,23 +416,7 @@ namespace Disguise.RenderStream
             if (m_awaitFrameData == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
-            if (handleReference.IsAllocated)
-                handleReference.Free();
-            handleReference = GCHandle.Alloc(data, GCHandleType.Pinned);
-            try
-            {
-                RS_ERROR error = m_awaitFrameData(timeoutMs, handleReference.AddrOfPinnedObject());
-                if (error == RS_ERROR.RS_ERROR_SUCCESS)
-                {
-                    data = (FrameData)Marshal.PtrToStructure(handleReference.AddrOfPinnedObject(), typeof(FrameData));
-                }
-                return error;
-            }
-            finally
-            {
-                if (handleReference.IsAllocated)
-                    handleReference.Free();
-            }
+            return m_awaitFrameData(timeoutMs, ref data);
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
 
@@ -605,23 +575,7 @@ namespace Disguise.RenderStream
             if (m_getFrameCamera == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
-            if (handleReference.IsAllocated)
-                handleReference.Free();
-            handleReference = GCHandle.Alloc(outCameraData, GCHandleType.Pinned);
-            try
-            {
-                RS_ERROR error = m_getFrameCamera(streamHandle, handleReference.AddrOfPinnedObject());
-                if (error == RS_ERROR.RS_ERROR_SUCCESS)
-                {
-                    outCameraData = (CameraData)Marshal.PtrToStructure(handleReference.AddrOfPinnedObject(), typeof(CameraData));
-                }
-                return error;
-            }
-            finally
-            {
-                if (handleReference.IsAllocated)
-                    handleReference.Free();
-            }
+            return m_getFrameCamera(streamHandle, ref outCameraData);
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
 

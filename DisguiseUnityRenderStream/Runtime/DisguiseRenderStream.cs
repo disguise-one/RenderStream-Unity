@@ -221,7 +221,6 @@ namespace Disguise.RenderStream
         {
             if (receivedFrameData.scene >= schema.scenes.Length) return;
         
-            k_ScratchTextures.Clear();
             ManagedRemoteParameters spec = schema.scenes[receivedFrameData.scene];
             SceneFields fields = sceneFields[receivedFrameData.scene];
             int nNumericalParameters = 0;
@@ -302,6 +301,11 @@ namespace Disguise.RenderStream
                             transform.localScale = m.lossyScale;
                             transform.localRotation = m.rotation;
                             i += 16;
+                        }
+                        else if (fieldType == typeof(float))
+                        {
+                            field.SetValue(parameters[i]);
+                            ++i;
                         }
                         else
                         {

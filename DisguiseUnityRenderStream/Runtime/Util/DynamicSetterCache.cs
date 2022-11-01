@@ -21,17 +21,16 @@ namespace Disguise.RenderStream
 
         public static Action<object, T> GetSetter(MemberInfo member)
         {
-            var newMethod = new DynamicMethod($"{typeof(T).FullName}.argument_set_{member.Name}",
-                returnType: null,
-                parameterTypes: new[]
-                {
-                    typeof(object),
-                    typeof(T)
-                });
-            var gen = newMethod.GetILGenerator();
-
             if (!k_Cache.TryGetValue(member, out var setter))
             {
+                var newMethod = new DynamicMethod($"{typeof(T).FullName}.argument_set_{member.Name}",
+                    returnType: null,
+                    parameterTypes: new[]
+                    {
+                        typeof(object),
+                        typeof(T)
+                    });
+                var gen = newMethod.GetILGenerator();
                 switch (member)
                 {
                     case FieldInfo field:

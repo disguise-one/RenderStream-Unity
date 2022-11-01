@@ -66,7 +66,7 @@ namespace Disguise.RenderStream
             {
                 SenderFrameTypeData data = new SenderFrameTypeData();
                 data.dx11_resource = frame.GetNativeTexturePtr();
-                RS_ERROR error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, m_responseData);
+                RS_ERROR error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, ref m_responseData);
                 if (error != RS_ERROR.RS_ERROR_SUCCESS)
                     Debug.LogError(string.Format("Error sending frame: {0}", error));
             }
@@ -82,13 +82,11 @@ namespace Disguise.RenderStream
             if (m_convertedTex.width != m_sourceTex.width || m_convertedTex.height != m_sourceTex.height)
                 m_convertedTex.Reinitialize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
 
-            m_cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
-
-            if (cameraHandleReference.IsAllocated)
-                cameraHandleReference.Free();
-            cameraHandleReference = GCHandle.Alloc(m_cameraResponseData, GCHandleType.Pinned);
-
-            m_responseData = new FrameResponseData{ cameraData = cameraHandleReference.AddrOfPinnedObject() };
+            var cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
+            unsafe
+            {
+                var cameraResponseDataPtr = &cameraResponseData;
+                m_responseData = new FrameResponseData{ cameraData = (IntPtr)cameraResponseDataPtr };
 
 // Blocks HDRP streams in r18.2
 // #if UNITY_PIPELINE_HDRP
@@ -104,22 +102,14 @@ namespace Disguise.RenderStream
 //             m_captureAfterPostProcess.width.value = (Int32)m_width;
 //             m_captureAfterPostProcess.height.value = (Int32)m_height;
 // #else
-            RenderTexture unflipped = RenderTexture.GetTemporary(m_sourceTex.width, m_sourceTex.height, 0, m_sourceTex.format);
-            Graphics.Blit(m_sourceTex, unflipped, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-            Graphics.ConvertTexture(unflipped, m_convertedTex);
-            RenderTexture.ReleaseTemporary(unflipped);
+                RenderTexture unflipped = RenderTexture.GetTemporary(m_sourceTex.width, m_sourceTex.height, 0, m_sourceTex.format);
+                Graphics.Blit(m_sourceTex, unflipped, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+                Graphics.ConvertTexture(unflipped, m_convertedTex);
+                RenderTexture.ReleaseTemporary(unflipped);
 
-            try
-            {
                 SendFrame(m_convertedTex);
-            }
-            finally
-            {
-                if (cameraHandleReference.IsAllocated)
-                    cameraHandleReference.Free();
-            }
-            
 // #endif
+            }
         }
 
         public void DestroyStream()
@@ -131,7 +121,6 @@ namespace Disguise.RenderStream
 
         private RenderTexture m_sourceTex;
         private FrameResponseData m_responseData;
-        private CameraResponseData m_cameraResponseData;
         private GCHandle cameraHandleReference;
 
         string m_name;
