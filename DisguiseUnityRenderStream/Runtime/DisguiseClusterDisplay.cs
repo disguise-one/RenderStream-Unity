@@ -25,6 +25,7 @@ namespace Disguise.RenderStream
                 case NodeRole.Repeater:
                 {
                     s_FollowerFrameDataSubscription = s_FrameDataBus.Subscribe(BeginFollowerFrameOnRepeaterNode);
+                    ClusterDebug.Log("Setting as follower");
                     var error = PluginEntry.instance.setFollower(1);
                     if (error is not RS_ERROR.RS_ERROR_SUCCESS)
                     {
@@ -80,6 +81,7 @@ namespace Disguise.RenderStream
     
         static void BeginFollowerFrameOnRepeaterNode(FrameData emitterFrameData)
         {
+            ClusterDebug.Log($"Received disguise framedata from controller: {emitterFrameData.tTracked}");
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
             RS_ERROR error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
             Debug.Assert(error != RS_ERROR.RS_NOT_INITIALISED);
@@ -89,7 +91,7 @@ namespace Disguise.RenderStream
             if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
             {
                 CreateStreams();
-                error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
+                // error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
             }
 
             switch (settings.sceneControl)
