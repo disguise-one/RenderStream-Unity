@@ -19,8 +19,16 @@ namespace Disguise.RenderStream
             s_FrameDataBus = new EventBus<FrameData>(clusterSyncState);
             switch (clusterSyncState.NodeRole)
             {
-                case NodeRole.Emitter:
+                case NodeRole.Emitter when !clusterSyncState.RepeatersDelayedOneFrame:
+                    // If we're only syncing the basic frame data (no custom data being computed during
+                    // the frame), then we can cheat a bit to reduce latency, by publishing RenderStream FrameData
+                    // *before* the sync point.
                     ClusterSyncLooper.onInstanceDoPreFrame += AwaitFrameOnEmitterNode;
+                    ClusterSyncLooper.onInstanceDoPreFrame += PublishEmitterEvents;
+                    break;
+                case NodeRole.Emitter when clusterSyncState.RepeatersDelayedOneFrame:
+                    ClusterSyncLooper.onInstanceDoPreFrame += AwaitFrameOnEmitterNode;
+                    ClusterSyncLooper.onInstanceDoLateFrame += PublishEmitterEvents;
                     break;
                 case NodeRole.Repeater:
                 {
@@ -45,21 +53,26 @@ namespace Disguise.RenderStream
         public static void UnregisterClusterDisplayEvents()
         {
             ClusterSyncLooper.onInstanceDoPreFrame -= AwaitFrameOnEmitterNode;
+            ClusterSyncLooper.onInstanceDoPreFrame -= PublishEmitterEvents;
+            ClusterSyncLooper.onInstanceDoLateFrame -= PublishEmitterEvents;
             s_FollowerFrameDataSubscription?.Dispose();
             s_FrameDataBus?.Dispose();
+        }
+
+        static void PublishEmitterEvents()
+        {
+            s_FrameDataBus.Publish(frameData);
         }
     
         static void AwaitFrameOnEmitterNode()
         {
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
         
-            RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
+            RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out frameData);
             if (error == RS_ERROR.RS_ERROR_QUIT)
                 Application.Quit();
             if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
                 CreateStreams();
-        
-            s_FrameDataBus.Publish(frameData);
             switch (settings.sceneControl)
             {
                 case DisguiseRenderStreamSettings.SceneControl.Selection:
