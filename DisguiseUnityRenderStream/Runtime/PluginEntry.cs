@@ -80,7 +80,7 @@ namespace Disguise.RenderStream
 
         unsafe delegate RS_ERROR pGetStreams(/*Out*/ /*StreamDescriptions**/ IntPtr streams, /*InOut*/ ref UInt32 nBytes); // Populate streams into a buffer of size (nBytes) starting at (streams)
 
-        unsafe delegate RS_ERROR pAwaitFrameData(int timeoutMs,  /*Out*/ ref FrameData data);  // waits for any asset, any stream to request a frame, provides the parameters for that frame.
+        unsafe delegate RS_ERROR pAwaitFrameData(int timeoutMs,  [Out] out FrameData data);  // waits for any asset, any stream to request a frame, provides the parameters for that frame.
         unsafe delegate RS_ERROR pSetFollower(int isFollower); // Used to mark this node as relying on alternative mechanisms to distribute FrameData. Users must provide correct CameraResponseData to sendFrame, and call rs_beginFollowerFrame at the start of the frame, where awaitFrame would normally be called.
         unsafe delegate RS_ERROR pBeginFollowerFrame(double tTracked); // Pass the engine-distributed tTracked value in, if you have called rs_setFollower(1) otherwise do not call this function.
 
@@ -90,7 +90,7 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pGetFrameText(UInt64 schemaHash, UInt32 textParamIndex, /*Out*/ /*const char***/ ref IntPtr outTextPtr); // // returns the remote text data (pointer only valid until next rs_awaitFrameData)
 
         unsafe delegate RS_ERROR pGetFrameCamera(UInt64 streamHandle, /*Out*/ ref CameraData outCameraData);  // returns the CameraData for this stream, or RS_ERROR_NOTFOUND if no camera data is available for this stream on this frame
-        unsafe delegate RS_ERROR pSendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data,  /*In*/ ref FrameResponseData sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
+        unsafe delegate RS_ERROR pSendFrame(UInt64 streamHandle, SenderFrameType frameType, SenderFrameTypeData data,  [In] ref FrameResponseData sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
 
         unsafe delegate RS_ERROR pReleaseImage(SenderFrameType frameType, SenderFrameTypeData data);
 
@@ -411,12 +411,15 @@ namespace Disguise.RenderStream
             return error;
         }
 
-        public RS_ERROR awaitFrameData(int timeoutMs, ref FrameData data)
+        public RS_ERROR awaitFrameData(int timeoutMs, out FrameData data)
         {
             if (m_awaitFrameData == null)
+            {
+                data = default;
                 return RS_ERROR.RS_NOT_INITIALISED;
+            }
 
-            return m_awaitFrameData(timeoutMs, ref data);
+            return m_awaitFrameData(timeoutMs, out data);
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
 

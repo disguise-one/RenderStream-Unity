@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 
 namespace Disguise.RenderStream
 {
-    partial class DisguiseRenderStream
+    static partial class DisguiseRenderStream
     {
         [RuntimeInitializeOnLoadMethod]
         static void OnLoad()
@@ -386,7 +386,7 @@ namespace Disguise.RenderStream
             while (true)
             {
                 yield return waitForEndOfFrame;
-                RS_ERROR error = PluginEntry.instance.awaitFrameData(500, ref frameData);
+                RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out frameData);
                 if (error == RS_ERROR.RS_ERROR_QUIT)
                     Application.Quit();
                 if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
