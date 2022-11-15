@@ -12,9 +12,14 @@ namespace Disguise.RenderStream
         static EventBus<FrameData> s_FrameDataBus;
         static IDisposable s_FollowerFrameDataSubscription;
         
-        public static void RegisterClusterDisplayHooks()
+        public static void RegisterClusterDisplayEvents()
         {
             if (!ServiceLocator.TryGet(out IClusterSyncState clusterSyncState)) return;
+            if (s_FrameDataBus != null)
+            {
+                ClusterDebug.LogWarning("RenderStream is already registered with Cluster Display");
+                return;
+            }
          
             s_FrameDataBus = new EventBus<FrameData>(clusterSyncState);
             switch (clusterSyncState.NodeRole)
@@ -71,6 +76,7 @@ namespace Disguise.RenderStream
             ClusterSyncLooper.onInstanceDoLateFrame -= PublishEmitterEvents;
             s_FollowerFrameDataSubscription?.Dispose();
             s_FrameDataBus?.Dispose();
+            s_FrameDataBus = null;
         }
 
         static void PublishEmitterEvents()

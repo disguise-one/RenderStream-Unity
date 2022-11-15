@@ -16,7 +16,7 @@ namespace Disguise.RenderStream
 #if ENABLE_CLUSTER_DISPLAY
         void OnEnable()
         {
-            DisguiseRenderStream.RegisterClusterDisplayHooks();
+            DisguiseRenderStream.RegisterClusterDisplayEvents();
         }
     
 #endif

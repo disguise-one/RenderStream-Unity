@@ -85,7 +85,7 @@ namespace Disguise.RenderStream
         unsafe delegate RS_ERROR pBeginFollowerFrame(double tTracked); // Pass the engine-distributed tTracked value in, if you have called rs_setFollower(1) otherwise do not call this function.
 
         unsafe delegate RS_ERROR pGetFrameParameters(UInt64 schemaHash, /*Out*/ /*void**/ IntPtr outParameterData, UInt64 outParameterDataSize);  // returns the remote parameters for this frame.
-        unsafe delegate RS_ERROR pGetFrameImageData(UInt64 schemaHash, /*Out*/ /*ImageFrameData**/ IntPtr outParameterData, UInt64 outParameterDataCount);   // returns the remote image data for this frame.
+        unsafe delegate RS_ERROR pGetFrameImageData(UInt64 schemaHash, /*Out*/ ImageFrameData* outParameterData, UInt64 outParameterDataCount);   // returns the remote image data for this frame.
         unsafe delegate RS_ERROR pGetFrameImage(Int64 imageId, SenderFrameType frameType, SenderFrameTypeData data); // fills in (data) with the remote image
         unsafe delegate RS_ERROR pGetFrameText(UInt64 schemaHash, UInt32 textParamIndex, /*Out*/ /*const char***/ ref IntPtr outTextPtr); // // returns the remote text data (pointer only valid until next rs_awaitFrameData)
 
@@ -452,88 +452,39 @@ namespace Disguise.RenderStream
             {
             }
         }
-
-        public RS_ERROR getFrameParameters(UInt64 schemaHash, ref float[] outParameterData)
+        
+        public RS_ERROR GetFrameParameters(UInt64 schemaHash, Span<float> outParameterData)
         {
             if (m_getFrameParameters == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
-            if (handleReference.IsAllocated)
-                handleReference.Free();
-            handleReference = GCHandle.Alloc(outParameterData, GCHandleType.Pinned);
-            try
-            {
-                RS_ERROR error = m_getFrameParameters(schemaHash, handleReference.AddrOfPinnedObject(), (UInt64)outParameterData.Length * sizeof(float));
-                if (error == RS_ERROR.RS_ERROR_SUCCESS)
-                {
-                    Marshal.Copy(handleReference.AddrOfPinnedObject(), outParameterData, 0, outParameterData.Length);
-                }
-                return error;
-            }
-            finally
-            {
-                if (handleReference.IsAllocated)
-                    handleReference.Free();
-            }
-            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
-        }
-        
-        public RS_ERROR GetFrameParameters(UInt64 schemaHash, ref NativeArray<float> outParameterData)
-        {
-            if (m_getFrameParameters == null)
-                return RS_ERROR.RS_NOT_INITIALISED;
-
-            Debug.Assert(outParameterData.IsCreated);
             unsafe
             {
-                RS_ERROR error = m_getFrameParameters(schemaHash,
-                    (IntPtr)outParameterData.GetUnsafePtr(),
-                    (ulong)outParameterData.Length * sizeof(float));
-                return error;   
+                fixed(float* outDataPtr = outParameterData)
+                {
+                    RS_ERROR error = m_getFrameParameters(schemaHash,
+                        (IntPtr)outDataPtr,
+                        (ulong)outParameterData.Length * sizeof(float));
+                    return error;
+                }
             }
         }
         
-        public RS_ERROR GetFrameImageData(UInt64 schemaHash, ref NativeArray<ImageFrameData> outParameterData)
+        public RS_ERROR GetFrameImageData(UInt64 schemaHash, Span<ImageFrameData> outParameterData)
         {
             if (m_getFrameImageData == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
-            Debug.Assert(outParameterData.IsCreated);
             unsafe
             {
-                RS_ERROR error = m_getFrameImageData(schemaHash, (IntPtr)outParameterData.GetUnsafePtr(), (UInt64)outParameterData.Length);
-                return error;
-            }
-        }
-
-        public RS_ERROR getFrameImageData(UInt64 schemaHash, ref ImageFrameData[] outParameterData)
-        {
-            if (m_getFrameImageData == null)
-                return RS_ERROR.RS_NOT_INITIALISED;
-
-            if (handleReference.IsAllocated)
-                handleReference.Free();
-            handleReference = GCHandle.Alloc(outParameterData, GCHandleType.Pinned);
-            try
-            {
-                var size = Marshal.SizeOf(typeof(ImageFrameData));
-                RS_ERROR error = m_getFrameImageData(schemaHash, handleReference.AddrOfPinnedObject(), (UInt64)outParameterData.Length);
-                if (error == RS_ERROR.RS_ERROR_SUCCESS)
+                fixed (ImageFrameData* outDataPtr = outParameterData)
                 {
-                    for (int i = 0; i < outParameterData.Length; ++i)
-                    {
-                        IntPtr ptr = new IntPtr(handleReference.AddrOfPinnedObject().ToInt64() + i * size);
-                        outParameterData[i] = Marshal.PtrToStructure<ImageFrameData>(ptr);
-                    }
+                    RS_ERROR error = m_getFrameImageData(schemaHash,
+                        outDataPtr,
+                        (UInt64)outParameterData.Length);
+                    return error;
                 }
-                return error;
             }
-            finally
-            {
-                if (handleReference.IsAllocated)
-                    handleReference.Free();
-            }
-            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
 
         public RS_ERROR getFrameImage(Int64 imageId, ref Texture2D texture)

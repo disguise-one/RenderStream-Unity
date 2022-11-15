@@ -238,9 +238,10 @@ namespace Disguise.RenderStream
                     ++nTextParameters;
             }
 
-            var parameters = new NativeArray<float>(nNumericalParameters, Allocator.Temp);
-            var imageData = new NativeArray<ImageFrameData>(nImageParameters, Allocator.Temp);
-            if (PluginEntry.instance.GetFrameParameters(spec.hash, ref parameters) == RS_ERROR.RS_ERROR_SUCCESS && PluginEntry.instance.GetFrameImageData(spec.hash, ref imageData) == RS_ERROR.RS_ERROR_SUCCESS)
+            using var parameters = new NativeArray<float>(nNumericalParameters, Allocator.Temp);
+            using var imageData = new NativeArray<ImageFrameData>(nImageParameters, Allocator.Temp);
+            if (PluginEntry.instance.GetFrameParameters(spec.hash, parameters.AsSpan()) == RS_ERROR.RS_ERROR_SUCCESS &&
+                PluginEntry.instance.GetFrameImageData(spec.hash, imageData.AsSpan()) == RS_ERROR.RS_ERROR_SUCCESS)
             {
                 if (fields.numerical != null)
                 {
@@ -370,8 +371,6 @@ namespace Disguise.RenderStream
                 }
             }
 
-            parameters.Dispose();
-            imageData.Dispose();
         }
     
         public static IEnumerator AwaitFrame()
