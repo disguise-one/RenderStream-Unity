@@ -3,14 +3,24 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Disguise.RenderStream.Utils;
 using Unity.Collections;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.PlayerLoop;
 using UnityEngine.SceneManagement;
 
 namespace Disguise.RenderStream
 {
-    static partial class DisguiseRenderStream
+    class DisguiseRenderStream
     {
+        /// <summary>
+        /// Initializes RenderStream objects.
+        /// </summary>
+        /// <remarks>
+        /// Ensures that the RenderStream plugin is initialized, and then creates the <see cref="DisguiseRenderStream"/>
+        /// singleton. This is called after Awake but before the scene is loaded.
+        /// </remarks>
         [RuntimeInitializeOnLoadMethod]
         static void OnLoad()
         {
@@ -27,30 +37,55 @@ namespace Disguise.RenderStream
             }
 
             string pathToBuiltProject = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-            RS_ERROR error = PluginEntry.instance.loadSchema(pathToBuiltProject, ref schema);
-            if (error == RS_ERROR.RS_ERROR_SUCCESS)
+            RS_ERROR error = PluginEntry.instance.LoadSchema(pathToBuiltProject, out var schema);
+            if (error != RS_ERROR.RS_ERROR_SUCCESS)
             {
-                sceneFields = new SceneFields[schema.scenes.Length];
-                Scene activeScene = SceneManager.GetActiveScene();
-                if (activeScene.isLoaded)
-                    OnSceneLoaded(activeScene, LoadSceneMode.Single);
-                SceneManager.sceneLoaded += OnSceneLoaded;
+                Debug.LogError(string.Format("DisguiseRenderStream: Failed to load schema {0}", error));
+            }
+
+#if !ENABLE_CLUSTER_DISPLAY
+            Instance = new DisguiseRenderStream(schema);
+#else
+            Instance = new DisguiseRenderStreamWithCluster(schema);
+#endif
+            
+            Instance.Initialize();
+            SceneManager.sceneLoaded += Instance.OnSceneLoaded;
+            if (SceneManager.GetActiveScene() is { isLoaded: true } scene)
+            {
+                Instance.OnSceneLoaded(scene, LoadSceneMode.Single);
+            }
+        }
+
+        struct RenderStreamUpdate { }
+
+        protected virtual void Initialize()
+        {
+            PlayerLoopExtensions.RegisterUpdate<TimeUpdate.WaitForLastPresentationAndUpdateTime, RenderStreamUpdate>(AwaitFrame);
+        }
+
+        protected DisguiseRenderStream(ManagedSchema schema)
+        {
+            if (schema != null)
+            {
+                m_SceneFields = new SceneFields[schema.scenes.Length];
             }
             else
             {
-                Debug.LogError(string.Format("DisguiseRenderStream: Failed to load schema {0}", error));
                 schema = new ManagedSchema();
                 schema.channels = new string[0];
                 schema.scenes = new ManagedRemoteParameters[1];
                 schema.scenes[0] = new ManagedRemoteParameters();
                 schema.scenes[0].name = "Default";
                 schema.scenes[0].parameters = new ManagedRemoteParameter[0];
-                sceneFields = new SceneFields[schema.scenes.Length];
+                m_SceneFields = new SceneFields[schema.scenes.Length];
                 CreateStreams();
             }
+            m_Schema = schema;
+            m_Settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
         }
 
-        static void OnSceneLoaded(Scene loadedScene, LoadSceneMode mode)
+        void OnSceneLoaded(Scene loadedScene, LoadSceneMode mode)
         {
             CreateStreams();
             int sceneIndex = 0;
@@ -62,9 +97,9 @@ namespace Disguise.RenderStream
                     break;
             }
             DisguiseRemoteParameters[] remoteParameters = UnityEngine.Object.FindObjectsOfType(typeof(DisguiseRemoteParameters)) as DisguiseRemoteParameters[];
-            ManagedRemoteParameters scene = schema.scenes[sceneIndex];
-            sceneFields[sceneIndex] = new SceneFields{ numerical = new List<ObjectField>(), images = new List<ObjectField>(), texts = new List<ObjectField>() };
-            SceneFields fields = sceneFields[sceneIndex];
+            ManagedRemoteParameters scene = m_Schema.scenes[sceneIndex];
+            m_SceneFields[sceneIndex] = new SceneFields{ numerical = new List<ObjectField>(), images = new List<ObjectField>(), texts = new List<ObjectField>() };
+            SceneFields fields = m_SceneFields[sceneIndex];
             for (int j = 0; j < scene.parameters.Length;)
             {
                 string key = scene.parameters[j].key;
@@ -131,8 +166,9 @@ namespace Disguise.RenderStream
             }
         }
 
-        static void CreateStreams()
+        protected void CreateStreams()
         {
+            Debug.Log("CreateStreams");
             if (PluginEntry.instance.IsAvailable == false)
             {
                 Debug.LogError("DisguiseRenderStream: RenderStream DLL not available");
@@ -141,50 +177,56 @@ namespace Disguise.RenderStream
 
             do
             {
-                RS_ERROR error = PluginEntry.instance.getStreams(ref streams);
+                RS_ERROR error = PluginEntry.instance.getStreams(out var streams);
                 if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 {
                     Debug.LogError(string.Format("DisguiseRenderStream: Failed to get streams {0}", error));
                     return;
                 }
 
-                if (streams.Length == 0)
+                Debug.Assert(streams != null);
+                Streams = streams;
+                if (Streams.Length == 0)
                 {
                     Debug.Log("Waiting for streams...");
                     Thread.Sleep(1000);
                 }
-            } while (streams.Length == 0);
+            } while (Streams.Length == 0);
 
-            Debug.Log(string.Format("Found {0} streams", streams.Length));
-            foreach (var camera in cameras)
+            Debug.Log(string.Format("Found {0} streams", Streams.Length));
+            
+            foreach (var camera in m_Cameras)
                 UnityEngine.Object.Destroy(camera);
-            cameras = new GameObject[streams.Length];
+            m_Cameras = new GameObject[Streams.Length];
 
             // cache the template cameras prior to instantiating our instance cameras 
             Camera[] templateCameras = getTemplateCameras();
             const int cullUIOnly = ~(1 << 5);
 
-            for (int i = 0; i < streams.Length; ++i)
+            for (int i = 0; i < Streams.Length; ++i)
             {        
-                StreamDescription stream = streams[i];
+                StreamDescription stream = Streams[i];
                 Camera channelCamera = DisguiseRenderStream.GetChannelCamera(stream.channel);
                 if (channelCamera)
                 {
-                    cameras[i] = UnityEngine.Object.Instantiate(channelCamera.gameObject, channelCamera.gameObject.transform.parent);
-                    cameras[i].name = stream.name;
+                    m_Cameras[i] = UnityEngine.Object.Instantiate(channelCamera.gameObject, channelCamera.gameObject.transform);
+                    m_Cameras[i].name = stream.name;
                 }
                 else if (Camera.main)
                 {
-                    cameras[i] = UnityEngine.Object.Instantiate(Camera.main.gameObject, Camera.main.gameObject.transform.parent);
-                    cameras[i].name = stream.name;
+                    m_Cameras[i] = UnityEngine.Object.Instantiate(Camera.main.gameObject, Camera.main.gameObject.transform);
+                    m_Cameras[i].name = stream.name;
                 }
                 else
                 {
-                    cameras[i] = new GameObject(stream.name);
-                    cameras[i].AddComponent<Camera>();
+                    m_Cameras[i] = new GameObject(stream.name);
+                    m_Cameras[i].AddComponent<Camera>();
                 }
+
+                m_Cameras[i].transform.localPosition = Vector3.zero;
+                m_Cameras[i].transform.localRotation = Quaternion.identity;
             
-                GameObject cameraObject = cameras[i];
+                GameObject cameraObject = m_Cameras[i];
                 Camera camera = cameraObject.GetComponent<Camera>();
                 camera.enabled = true; // ensure the camera component is enable
                 camera.cullingMask &= cullUIOnly; // cull the UI so RenderStream and other error messages don't render to RenderStream outputs
@@ -211,18 +253,18 @@ namespace Disguise.RenderStream
                 // we don't want to disable the game object otherwise we won't be able to find the object again to instantiate instance cameras if we get a streams changed event
             }
 
-            frameData = new FrameData();
-            awaiting = false;
+            LatestFrameData = new FrameData();
+            Awaiting = false;
         }
     
-        static readonly List<Texture2D> k_ScratchTextures = new ();
+        readonly List<Texture2D> m_ScratchTextures = new ();
     
-        static void ProcessFrameData(in FrameData receivedFrameData)
+        protected void ProcessFrameData(in FrameData receivedFrameData)
         {
-            if (receivedFrameData.scene >= schema.scenes.Length) return;
+            if (receivedFrameData.scene >= m_Schema.scenes.Length) return;
         
-            ManagedRemoteParameters spec = schema.scenes[receivedFrameData.scene];
-            SceneFields fields = sceneFields[receivedFrameData.scene];
+            ManagedRemoteParameters spec = m_Schema.scenes[receivedFrameData.scene];
+            SceneFields fields = m_SceneFields[receivedFrameData.scene];
             int nNumericalParameters = 0;
             int nImageParameters = 0;
             int nTextParameters = 0;
@@ -319,10 +361,10 @@ namespace Disguise.RenderStream
 
                 if (fields.images != null)
                 {
-                    while (k_ScratchTextures.Count < imageData.Length)
+                    while (m_ScratchTextures.Count < imageData.Length)
                     {
-                        int index = k_ScratchTextures.Count;
-                        k_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
+                        int index = m_ScratchTextures.Count;
+                        m_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
                     }
 
                     int i = 0;
@@ -330,14 +372,14 @@ namespace Disguise.RenderStream
                     {
                         if (field.GetValue() is RenderTexture renderTexture)
                         {
-                            Texture2D texture = k_ScratchTextures[i];
+                            Texture2D texture = m_ScratchTextures[i];
                             if (texture.width != imageData[i].width || texture.height != imageData[i].height ||
                                 texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
                             {
-                                k_ScratchTextures[i] = new Texture2D((int)imageData[i].width,
+                                m_ScratchTextures[i] = new Texture2D((int)imageData[i].width,
                                     (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false,
                                     true);
-                                texture = k_ScratchTextures[i];
+                                texture = m_ScratchTextures[i];
                             }
 
                             if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
@@ -373,39 +415,30 @@ namespace Disguise.RenderStream
 
         }
     
-        public static IEnumerator AwaitFrame()
+        protected void AwaitFrame()
         {
-            if (awaiting)
-                yield break;
-            awaiting = true;
+            RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out var frameData);
+            LatestFrameData = frameData;
             
-            var waitForEndOfFrame = new WaitForEndOfFrame();
-            
-            DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
-            while (true)
+            if (error == RS_ERROR.RS_ERROR_QUIT)
+                Application.Quit();
+            if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
+                CreateStreams();
+            switch (m_Settings.sceneControl)
             {
-                yield return waitForEndOfFrame;
-                RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out frameData);
-                if (error == RS_ERROR.RS_ERROR_QUIT)
-                    Application.Quit();
-                if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
-                    CreateStreams();
-                switch (settings.sceneControl)
-                {
-                    case DisguiseRenderStreamSettings.SceneControl.Selection:
-                        if (SceneManager.GetActiveScene().buildIndex != frameData.scene)
-                        {
-                            newFrameData = false;
-                            SceneManager.LoadScene((int)frameData.scene);
-                            yield break;
-                        }
-                        break;
-                }
-                newFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
-                if (newFrameData)
-                {
-                    ProcessFrameData(frameData);
-                }
+                case DisguiseRenderStreamSettings.SceneControl.Selection:
+                    if (SceneManager.GetActiveScene().buildIndex != LatestFrameData.scene)
+                    {
+                        HasNewFrameData = false;
+                        SceneManager.LoadScene((int)LatestFrameData.scene);
+                        return;
+                    }
+                    break;
+            }
+            HasNewFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
+            if (HasNewFrameData)
+            {
+                ProcessFrameData(LatestFrameData);
             }
         }
 
@@ -426,13 +459,18 @@ namespace Disguise.RenderStream
             }
         }
 
-        static public StreamDescription[] streams = { };
-        static public bool awaiting = false;
-        static public FrameData frameData;
-        static public bool newFrameData = false;
+        public static DisguiseRenderStream Instance { get; private set; }
 
-        static private GameObject[] cameras = { };
-        static private ManagedSchema schema = new ManagedSchema();
+        public StreamDescription[] Streams { get; private set; } = { };
+
+        public bool Awaiting { get; private set; }
+
+        public FrameData LatestFrameData { get; protected set; }
+
+        public bool HasNewFrameData { get; protected set; }
+        
+        GameObject[] m_Cameras = { };
+        ManagedSchema m_Schema = new ();
 
         public struct SceneFields
         {
@@ -440,6 +478,8 @@ namespace Disguise.RenderStream
             public List<ObjectField> images;
             public List<ObjectField> texts;
         }
-        static private SceneFields[] sceneFields = new SceneFields[0];
+        
+        SceneFields[] m_SceneFields;
+        DisguiseRenderStreamSettings m_Settings;
     }
 }

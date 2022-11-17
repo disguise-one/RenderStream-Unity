@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Unity.Collections;
@@ -14,7 +15,7 @@ using UnityEngine;
 namespace Disguise.RenderStream
 {
     [Serializable]
-    public sealed class PluginEntry
+    sealed class PluginEntry
     {
         private class Nested
         {
@@ -326,8 +327,9 @@ namespace Disguise.RenderStream
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
 
-        public RS_ERROR loadSchema(string assetPath, ref ManagedSchema schema)
+        public RS_ERROR LoadSchema(string assetPath, out ManagedSchema schema)
         {
+            schema = new ManagedSchema();
             if (m_loadSchema == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
@@ -362,8 +364,10 @@ namespace Disguise.RenderStream
             return res;
         }
 
-        public RS_ERROR getStreams(ref StreamDescription[] streams)
+        public RS_ERROR getStreams(out StreamDescription[] streams)
         {
+            streams = null;
+            
             if (m_getStreams == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
@@ -795,4 +799,13 @@ namespace Disguise.RenderStream
             return functionDelegate;
         }
     }
+    
+#if !UNITY_2022_2_OR_NEWER
+    static class PluginExtensions
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe Span<T> AsSpan<T>(this NativeArray<T> arr) where T : unmanaged =>
+            new(arr.GetUnsafePtr(), arr.Length);
+    }
+#endif
 }

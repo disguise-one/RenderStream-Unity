@@ -1,7 +1,7 @@
 using System;
 using System.Reflection;
 
-namespace Disguise.RenderStream
+namespace Disguise.RenderStream.Utils
 {
     class ObjectField
     {

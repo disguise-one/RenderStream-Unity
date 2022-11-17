@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace Disguise.RenderStream
+namespace Disguise.RenderStream.Utils
 {
     /// <summary>
     /// Contains a dynamically-generated collection of delegates to set a property or field

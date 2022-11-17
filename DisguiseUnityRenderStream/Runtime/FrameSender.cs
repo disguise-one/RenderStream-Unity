@@ -16,13 +16,12 @@ namespace Disguise.RenderStream
         }
 
         private FrameSender() { }
-        public FrameSender(string name, Camera cam)
+        public FrameSender(string name, Camera cam, StreamDescription stream)
         {
             m_name = name;
             Cam = cam;
 
             Debug.Log(string.Format("Creating stream {0}", m_name));
-            StreamDescription stream = Array.Find(DisguiseRenderStream.streams, s => s.name == name);
             Debug.Log(string.Format("  Channel {0} at {1}x{2}@{3}", stream.channel, stream.width, stream.height, stream.format));
 
             m_lastFrameCount = -1;

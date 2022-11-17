@@ -3,61 +3,38 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-#if ENABLE_CLUSTER_DISPLAY
-using Unity.ClusterDisplay;
-#endif
-
 namespace Disguise.RenderStream
 {
     [AddComponentMenu("")]
     [RequireComponent(typeof(Camera))]
     public class DisguiseCameraCapture : MonoBehaviour
     {
-#if ENABLE_CLUSTER_DISPLAY
-        void OnEnable()
-        {
-            DisguiseRenderStream.RegisterClusterDisplayEvents();
-        }
-    
-#endif
-    
         // Start is called before the first frame update
-        public IEnumerator Start()
+        public void Start()
         {
-            if (PluginEntry.instance.IsAvailable == false)
+            m_RenderStream = DisguiseRenderStream.Instance;
+            if (m_RenderStream == null || PluginEntry.instance.IsAvailable == false)
             {
                 Debug.LogError("DisguiseCameraCapture: RenderStream DLL not available, capture cannot start.");
                 enabled = false;
-                yield break;
+                return;
             }
 
             m_cameraData = new CameraData();
 
             m_camera = GetComponent<Camera>();
-            m_frameSender = new Disguise.RenderStream.FrameSender(gameObject.name, m_camera);
+            StreamDescription stream = Array.Find(m_RenderStream.Streams, s => s.name == gameObject.name);
+            m_frameSender = new FrameSender(gameObject.name, m_camera, stream);
             RenderPipelineManager.endFrameRendering += RenderPipelineManager_endFrameRendering;
-
-#if ENABLE_CLUSTER_DISPLAY
-            if (!ClusterDisplayState.GetIsClusterLogicEnabled())
-            {
-                if (Application.isPlaying == false)
-                    yield break;
-                if (!DisguiseRenderStream.awaiting)
-                    yield return StartCoroutine(DisguiseRenderStream.AwaitFrame());
-            }
-#else
-            if (Application.isPlaying == false)
-                yield break;
-            if (!DisguiseRenderStream.awaiting)
-                yield return StartCoroutine(DisguiseRenderStream.AwaitFrame());
-#endif
         }
 
         // Update is called once per frame
         public void Update()
         {
             // set tracking
-            m_newFrameData = DisguiseRenderStream.newFrameData && m_frameSender != null && m_frameSender.GetCameraData(ref m_cameraData);
+            if (m_RenderStream == null) return;
+            
+            m_newFrameData = m_RenderStream.HasNewFrameData && m_frameSender != null && m_frameSender.GetCameraData(ref m_cameraData);
             float cameraAspect = m_camera.aspect;
             Vector2 lensShift = new Vector2(0.0f, 0.0f);
             if (m_newFrameData)
@@ -168,7 +145,7 @@ namespace Disguise.RenderStream
             {
                 if (m_frameSender != null)
                 {
-                    m_frameSender.SendFrame(DisguiseRenderStream.frameData, m_cameraData);
+                    m_frameSender.SendFrame(m_RenderStream.LatestFrameData, m_cameraData);
                 }
                 m_newFrameData = false;
             }
@@ -194,10 +171,6 @@ namespace Disguise.RenderStream
                 m_frameSender.DestroyStream();
             }
             RenderPipelineManager.endFrameRendering -= RenderPipelineManager_endFrameRendering;
-        
-#if ENABLE_CLUSTER_DISPLAY
-            DisguiseRenderStream.UnregisterClusterDisplayEvents();
-#endif
         }
 
         Camera m_camera;
@@ -205,5 +178,6 @@ namespace Disguise.RenderStream
 
         CameraData m_cameraData;
         bool m_newFrameData = false;
+        DisguiseRenderStream m_RenderStream;
     }
 }

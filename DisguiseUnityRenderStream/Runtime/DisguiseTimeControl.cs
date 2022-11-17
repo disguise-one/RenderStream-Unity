@@ -17,14 +17,23 @@ namespace Disguise.RenderStream
 
         void Update()
         {
-            if (DisguiseRenderStream.newFrameData)
+            Time.captureDeltaTime = 0;
+            var renderStream = DisguiseRenderStream.Instance;
+            if (renderStream == null) return;
+            
+            if (renderStream.HasNewFrameData)
             {
-                if (DisguiseRenderStream.frameData.localTime < playableDirector.initialTime || DisguiseRenderStream.frameData.localTimeDelta <= 0)
+                if (renderStream.LatestFrameData.localTime < playableDirector.initialTime || renderStream.LatestFrameData.localTimeDelta <= 0)
                     playableDirector.Pause();
                 else
                     playableDirector.Resume();
 
-                playableDirector.time = Math.Max(0, DisguiseRenderStream.frameData.localTime - playableDirector.initialTime);
+                if (renderStream.LatestFrameData.localTimeDelta > 0)
+                {
+                    Time.captureDeltaTime = (float)renderStream.LatestFrameData.localTimeDelta;
+                }
+
+                playableDirector.time = Math.Max(0, renderStream.LatestFrameData.localTime - playableDirector.initialTime);
 
                 switch (playableDirector.extrapolationMode)
                 {
