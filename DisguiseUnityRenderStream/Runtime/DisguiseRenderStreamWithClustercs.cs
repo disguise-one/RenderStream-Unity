@@ -159,7 +159,7 @@ namespace Disguise.RenderStream
         static ClusterParams DetectSettings()
         {
             var commandLineArgs = Environment.GetCommandLineArgs();
-            var repeaterCountIdx = Array.IndexOf(commandLineArgs, "-repeaters");
+            var repeaterCountIdx = Array.IndexOf(commandLineArgs, "-nodes");
             int? repeaterCount =
                 repeaterCountIdx > 0 && commandLineArgs.Length > repeaterCountIdx + 1 &&
                 int.TryParse(commandLineArgs[repeaterCountIdx + 1], out var repeaterCountArg)
@@ -180,7 +180,7 @@ namespace Disguise.RenderStream
 
 #if NET_4_6
             // Get the node info from the Win32 registry. Use the Set-NodeProperty.ps1 script (look for it in the
-            // repo root) to set these values.
+            // Scripts directory in the repo root) to set these values.
             using var clusterKey = Registry.LocalMachine.OpenSubKey("Software\\Unity Technologies\\ClusterDisplay", true);
             if (clusterKey != null)
             {
@@ -255,6 +255,7 @@ namespace Disguise.RenderStream
             {
                 m_ClusterSync.DisableClusterDisplay();
                 ServiceLocator.Withdraw<IClusterSyncState>();
+                m_ClusterSync = null;
             }
         }
     }
