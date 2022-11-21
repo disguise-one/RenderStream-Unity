@@ -1,0 +1,25 @@
+{
+    "name": "Disguise.RenderStream",
+    "rootNamespace": "",
+    "references": [
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.HighDefinition.Runtime",
+        "Unity.RenderPipelines.HighDefinition.Config.Runtime",
+        "Unity.ClusterDisplay.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.cluster-display",
+            "expression": "0.0.0",
+            "define": "ENABLE_CLUSTER_DISPLAY"
+        }
+    ],
+    "noEngineReferences": false
+}
