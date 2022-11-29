@@ -50,8 +50,21 @@ namespace Disguise.RenderStream
         public void SendFrame(Texture2D frame)
         {
             SenderFrameTypeData data = new SenderFrameTypeData();
-            data.dx11_resource = frame.GetNativeTexturePtr();
-            RS_ERROR error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, ref m_responseData);
+            RS_ERROR error = RS_ERROR.RS_ERROR_SUCCESS;
+
+            switch (PluginEntry.instance.GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                    data.dx11_resource = frame.GetNativeTexturePtr();
+                    error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, ref m_responseData);
+                    break;
+                
+                case GraphicsDeviceType.Direct3D12:
+                    data.dx12_resource = frame.GetNativeTexturePtr();
+                    error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX12_TEXTURE, data, ref m_responseData);
+                    break;
+            }
+            
             if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 Debug.LogError(string.Format("Error sending frame: {0}", error));
         }
