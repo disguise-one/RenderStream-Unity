@@ -9,6 +9,16 @@ namespace Disguise.RenderStream
 {
     static class NativeRenderingPlugin
     {
+        public enum PixelFormat
+        {
+            Invalid,
+            BGRA8,
+            BGRX8,
+            RGBA32F,
+            RGBA16,
+            RGBA8,
+        }
+        
 #if NATIVE_RENDERING_PLUGIN_AVAILABLE
         public static bool IsInitialized()
         {
@@ -32,6 +42,15 @@ namespace Disguise.RenderStream
             }
             return IntPtr.Zero;
         }
+        
+        public static IntPtr CreateNativeTexture(int width, int height, PixelFormat pixelFormat)
+        {
+            if (IsInitialized())
+            {
+                return NativeRenderingPluginNative.CreateNativeTexture(width, height, (int)pixelFormat);
+            }
+            return IntPtr.Zero;
+        }
 #else
         public static bool IsInitialized()
         {
@@ -44,6 +63,11 @@ namespace Disguise.RenderStream
         }
         
         public static IntPtr GetD3D12CommandQueue()
+        {
+            return IntPtr.Zero;
+        }
+        
+        public static IntPtr CreateTexture(int width, int height, int pixelFormat)
         {
             return IntPtr.Zero;
         }
@@ -63,6 +87,9 @@ namespace Disguise.RenderStream
         
         [DllImport(PluginName)]
         public static extern IntPtr GetD3D12CommandQueue();
+
+        [DllImport(PluginName)]
+        public static extern IntPtr CreateNativeTexture(int width, int height, int pixelFormat);
     }
 #endif
 }

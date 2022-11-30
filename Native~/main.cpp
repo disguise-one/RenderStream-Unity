@@ -1,20 +1,23 @@
 #include "PublicAPI.h"
 
+#include <mutex>
+
 #include "Unity/IUnityInterface.h"
 #include "Unity/IUnityGraphics.h"
 
-class IDXGISwapChain;
-#include "d3d12.h"
-#include "Unity/IUnityGraphicsD3D12.h"
+#include "Logger.h"
+#include "DX12System.h"
+#include "DX12Texture.h"
 
 static IUnityInterfaces* s_UnityInterfaces = nullptr;
 static IUnityGraphics* s_Graphics = nullptr;
 static UnityGfxRenderer s_RendererType = kUnityGfxRendererNull;
 
-static bool s_IsInitialized = false;
-static IUnityGraphicsD3D12v5* s_D3D12UnityGraphics = nullptr;
-static ID3D12Device* s_D3D12Device = nullptr;
-static ID3D12CommandQueue* s_D3D12CommandQueue = nullptr;
+// Local mutex object used to prevent race conditions between the main thread
+// and the render thread. This should be locked at the following points:
+// - OnRenderEvent (this is the only point called from the render thread)
+// - Plugin functions that use the Spout API functions.
+std::mutex s_Lock;
 
 // Unity plugin load event
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
@@ -22,6 +25,7 @@ UnityPluginLoad(IUnityInterfaces * unityInterfaces)
 {
     s_UnityInterfaces = unityInterfaces;
     s_Graphics = unityInterfaces->Get<IUnityGraphics>();
+    s_Logger = std::make_unique<Logger>(unityInterfaces);
 
     if (s_Graphics != nullptr)
     {
@@ -56,14 +60,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 
                 if (s_RendererType == kUnityGfxRendererD3D12)
                 {
-                    s_D3D12UnityGraphics = s_UnityInterfaces->Get<IUnityGraphicsD3D12v5>();
-
-                    if (s_D3D12UnityGraphics != nullptr)
-                    {
-                        s_D3D12Device = s_D3D12UnityGraphics->GetDevice();
-                        s_D3D12CommandQueue = s_D3D12UnityGraphics->GetCommandQueue();
-                        s_IsInitialized = s_D3D12Device != nullptr && s_D3D12CommandQueue != nullptr;
-                    }
+                    s_DX12System = std::make_unique<DX12System>(s_UnityInterfaces);
                 }
             }
 
@@ -72,11 +69,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
         case kUnityGfxDeviceEventShutdown:
         {
             s_RendererType = kUnityGfxRendererNull;
-
-            s_IsInitialized = false;
-            s_D3D12UnityGraphics = nullptr;
-            s_D3D12Device = nullptr;
-            s_D3D12CommandQueue = nullptr;
+            s_DX12System.reset();
 
             break;
         }
@@ -91,17 +84,61 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
     };
 }
 
-extern "C" UNITY_INTERFACE_EXPORT bool IsInitialized()
+void UNITY_INTERFACE_API
+OnRenderEvent(int eventId, void* eventData)
 {
-    return s_IsInitialized;
+    std::lock_guard<std::mutex> guard(s_Lock);
+
+    // TODO
+
+    /*auto data = reinterpret_cast<const EventData*>(eventData);
+
+    switch (eventId)
+    {
+
+    }
+
+    if (event_id == event_updateSender) data->sender->update(data->texture);
+    if (event_id == event_closeSender) delete data->sender;*/
 }
 
-extern "C" UNITY_INTERFACE_EXPORT void* GetD3D12Device()
+extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT
+GetRenderEventCallback()
 {
-    return s_D3D12Device;
+    return OnRenderEvent;
 }
 
-extern "C" UNITY_INTERFACE_EXPORT void* GetD3D12CommandQueue()
+extern "C" bool UNITY_INTERFACE_EXPORT
+IsInitialized()
 {
-    return s_D3D12CommandQueue;
+    return s_DX12System != nullptr && s_DX12System->IsInitialized();
 }
+
+extern "C" UNITY_INTERFACE_EXPORT void*
+GetD3D12Device()
+{
+    return s_DX12System->GetDevice();
+}
+
+extern "C" UNITY_INTERFACE_EXPORT void*
+GetD3D12CommandQueue()
+{
+    return s_DX12System->GetCommandQueue();
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT *
+CreateNativeTexture(int width, int height, int pixelFormat)
+{
+    return CreateTexture(width, height, static_cast<PixelFormat>(pixelFormat));
+}
+
+extern "C" DX12Texture UNITY_INTERFACE_EXPORT *
+CreateTexture(int width, int height, int pixelFormat)
+{
+    return new DX12Texture(width, height, static_cast<PixelFormat>(pixelFormat));
+}
+
+//extern "C" UNITY_INTERFACE_EXPORT void* GetD3D12Device()
+//{
+//    return s_D3D12Device;
+//}

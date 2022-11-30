@@ -15,6 +15,20 @@ namespace Disguise.RenderStream
             public CameraResponseData responseData;
         }
 
+        NativeRenderingPlugin.PixelFormat ToNativeRenderingPluginFormat(RSPixelFormat rsPixelFormat)
+        {
+            switch (rsPixelFormat)
+            {
+                case RSPixelFormat.RS_FMT_BGRA8: return NativeRenderingPlugin.PixelFormat.BGRA8;
+                case RSPixelFormat.RS_FMT_BGRX8: return NativeRenderingPlugin.PixelFormat.BGRX8;
+                case RSPixelFormat.RS_FMT_RGBA32F: return NativeRenderingPlugin.PixelFormat.RGBA32F;
+                case RSPixelFormat.RS_FMT_RGBA16: return NativeRenderingPlugin.PixelFormat.RGBA16;
+                case RSPixelFormat.RS_FMT_RGBA8: return NativeRenderingPlugin.PixelFormat.RGBA8;
+                case RSPixelFormat.RS_FMT_RGBX8: return NativeRenderingPlugin.PixelFormat.RGBA8;
+                default: return NativeRenderingPlugin.PixelFormat.BGRA8;
+            }
+        }
+
         private FrameSender() { }
         public FrameSender(string name, Camera cam, StreamDescription stream)
         {
@@ -37,7 +51,10 @@ namespace Disguise.RenderStream
                 name = m_name + " Texture"
             };
             Cam.targetTexture = m_sourceTex;
-            m_convertedTex = new Texture2D(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false);
+            // m_convertedTex = new Texture2D(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false);
+
+            var nativeTex = NativeRenderingPlugin.CreateNativeTexture(m_sourceTex.width, m_sourceTex.height, ToNativeRenderingPluginFormat(stream.format));
+            m_convertedTex = Texture2D.CreateExternalTexture(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false, nativeTex);
 
             Debug.Log(string.Format("Created stream {0} with handle {1}", m_name, m_streamHandle));
         }
