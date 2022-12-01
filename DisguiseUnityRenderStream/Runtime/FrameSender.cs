@@ -53,7 +53,7 @@ namespace Disguise.RenderStream
             Cam.targetTexture = m_sourceTex;
             // m_convertedTex = new Texture2D(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false);
 
-            var nativeTex = NativeRenderingPlugin.CreateNativeTexture(m_sourceTex.width, m_sourceTex.height, ToNativeRenderingPluginFormat(stream.format));
+            var nativeTex = NativeRenderingPlugin.CreateNativeTexture(m_name + " Converted Texture", m_sourceTex.width, m_sourceTex.height, ToNativeRenderingPluginFormat(stream.format));
             m_convertedTex = Texture2D.CreateExternalTexture(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false, nativeTex);
 
             Debug.Log(string.Format("Created stream {0} with handle {1}", m_name, m_streamHandle));

@@ -43,5 +43,8 @@
     <ClInclude Include="Unity\IUnityLog.h">
       <Filter>Unity</Filter>
     </ClInclude>
+    <ClInclude Include="Utility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

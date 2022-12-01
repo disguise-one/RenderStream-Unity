@@ -127,15 +127,15 @@ GetD3D12CommandQueue()
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT *
-CreateNativeTexture(int width, int height, int pixelFormat)
+CreateNativeTexture(const char* name, int width, int height, int pixelFormat)
 {
-    return CreateTexture(width, height, static_cast<PixelFormat>(pixelFormat));
+    return CreateTexture(name, width, height, static_cast<PixelFormat>(pixelFormat));
 }
 
 extern "C" DX12Texture UNITY_INTERFACE_EXPORT *
-CreateTexture(int width, int height, int pixelFormat)
+CreateTexture(const char* name, int width, int height, int pixelFormat)
 {
-    return new DX12Texture(width, height, static_cast<PixelFormat>(pixelFormat));
+    return new DX12Texture(name, width, height, static_cast<PixelFormat>(pixelFormat));
 }
 
 //extern "C" UNITY_INTERFACE_EXPORT void* GetD3D12Device()

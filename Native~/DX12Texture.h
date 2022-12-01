@@ -8,6 +8,7 @@ using namespace Microsoft::WRL;
 
 #include "Logger.h"
 #include "DX12System.h"
+#include "Utility.h"
 
 enum PixelFormat
 {
@@ -65,7 +66,7 @@ const D3D12_HEAP_PROPERTIES D3D12_DEFAULT_HEAP_PROPS = {
     D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0
 };
 
-ID3D12Resource* CreateTexture(int width, int height, PixelFormat pixelFormat)
+ID3D12Resource* CreateTexture(const char* name, int width, int height, PixelFormat pixelFormat)
 {
     DXGI_FORMAT dxFormat;
     if (!ToDXFormat(pixelFormat, dxFormat))
@@ -85,8 +86,7 @@ ID3D12Resource* CreateTexture(int width, int height, PixelFormat pixelFormat)
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
     desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
 
     const D3D12_HEAP_FLAGS flags = D3D12_HEAP_FLAG_SHARED;
     const D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -101,6 +101,8 @@ ID3D12Resource* CreateTexture(int width, int height, PixelFormat pixelFormat)
         return nullptr;
     }
 
+    resource->SetName(StrToWstr(name).c_str());
+
     return resource;
 }
 
@@ -108,7 +110,8 @@ class DX12Texture
 {
 public:
 
-    DX12Texture(int width, int height, PixelFormat format):
+    DX12Texture(const char* name, int width, int height, PixelFormat format):
+        m_Name(name),
         m_Width(width),
         m_Height(height),
         m_Format(format),
@@ -132,7 +135,7 @@ private:
 
     void InitializeTexture()
     {
-        m_Texture = CreateTexture(m_Width, m_Height, m_Format);
+        m_Texture = CreateTexture(m_Name, m_Width, m_Height, m_Format);
         m_IsInitialized = m_Texture != nullptr;
     }
 
@@ -141,6 +144,7 @@ private:
 
     }
 
+    const char* m_Name;
 	int m_Width;
 	int m_Height;
     PixelFormat m_Format;
