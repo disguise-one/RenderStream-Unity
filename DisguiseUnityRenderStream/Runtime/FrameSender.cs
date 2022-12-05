@@ -42,19 +42,21 @@ namespace Disguise.RenderStream
             m_streamHandle = stream.handle;
             m_width = (int)stream.width;
             m_height = (int)stream.height;
+            m_pixelFormat = stream.format;
 
             m_frameRegion = new Rect(stream.clipping.left, stream.clipping.top, stream.clipping.right - stream.clipping.left, stream.clipping.bottom - stream.clipping.top);
 
-            RenderTextureDescriptor desc = new RenderTextureDescriptor(m_width, m_height, PluginEntry.ToRenderTextureFormat(stream.format), 24);
+            RenderTextureDescriptor desc = new RenderTextureDescriptor(m_width, m_height, PluginEntry.ToRenderTextureFormat(m_pixelFormat), 24);
             m_sourceTex = new RenderTexture(desc)
             {
                 name = m_name + " Texture"
             };
             Cam.targetTexture = m_sourceTex;
-            // m_convertedTex = new Texture2D(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false);
-
-            var nativeTex = NativeRenderingPlugin.CreateNativeTexture(m_name + " Converted Texture", m_sourceTex.width, m_sourceTex.height, ToNativeRenderingPluginFormat(stream.format));
-            m_convertedTex = Texture2D.CreateExternalTexture(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false, nativeTex);
+            m_convertedTex = CreateTextureForDisguise(m_sourceTex.width, m_sourceTex.height, m_pixelFormat);
+            if (m_convertedTex == null)
+            {
+                Debug.LogError("Failed to create texture for Disguise");
+            }
 
             Debug.Log(string.Format("Created stream {0} with handle {1}", m_name, m_streamHandle));
         }
@@ -94,7 +96,13 @@ namespace Disguise.RenderStream
             m_lastFrameCount = Time.frameCount;
 
             if (m_convertedTex.width != m_sourceTex.width || m_convertedTex.height != m_sourceTex.height)
-                m_convertedTex.Reinitialize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
+            {
+                m_convertedTex = ResizeTextureForDisguise(m_convertedTex, m_width, m_height, m_pixelFormat);
+                if (m_convertedTex == null)
+                {
+                    Debug.LogError("Failed to resize texture for Disguise");
+                }
+            }
 
             var cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
             unsafe
@@ -131,6 +139,62 @@ namespace Disguise.RenderStream
             m_streamHandle = 0;
         }
 
+        Texture2D CreateTextureForDisguise(int width, int height, RSPixelFormat format)
+        {
+            switch (PluginEntry.instance.GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                    return new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, false);
+                
+                case GraphicsDeviceType.Direct3D12:
+                    var heapFlag = UseDX12SharedHeapFlag.RS_DX12_DO_NOT_USE_SHARED_HEAP_FLAG;
+                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(ref heapFlag);
+                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                        Debug.LogError(string.Format("Error checking shared heap flag: {0}", error));
+
+                    if (heapFlag == UseDX12SharedHeapFlag.RS_DX12_USE_SHARED_HEAP_FLAG)
+                    {
+                        var nativeTex = NativeRenderingPlugin.CreateNativeTexture(m_name + " Converted Texture", width, height, ToNativeRenderingPluginFormat(format));
+                        return Texture2D.CreateExternalTexture(width, height, PluginEntry.ToTextureFormat(format), false, false, nativeTex);
+                    }
+                    else
+                    {
+                        return new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, false);
+                    }
+            }
+
+            return null;
+        }
+
+        Texture2D ResizeTextureForDisguise(Texture2D texture, int newWidth, int newHeight, RSPixelFormat format)
+        {
+            switch (PluginEntry.instance.GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                    texture.Reinitialize(newWidth, newHeight, m_convertedTex.format, false);
+                    return texture;
+                
+                case GraphicsDeviceType.Direct3D12:
+                    var heapFlag = UseDX12SharedHeapFlag.RS_DX12_DO_NOT_USE_SHARED_HEAP_FLAG;
+                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(ref heapFlag);
+                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                        Debug.LogError(string.Format("Error checking shared heap flag: {0}", error));
+
+                    if (heapFlag == UseDX12SharedHeapFlag.RS_DX12_USE_SHARED_HEAP_FLAG)
+                    {
+                        var nativeTex = NativeRenderingPlugin.CreateNativeTexture(m_name + " Converted Texture", newWidth, newHeight, ToNativeRenderingPluginFormat(format));
+                        return Texture2D.CreateExternalTexture(newWidth, newHeight, PluginEntry.ToTextureFormat(format), false, false, nativeTex);
+                    }
+                    else
+                    {
+                        texture.Reinitialize(newWidth, newHeight, m_convertedTex.format, false);
+                        return texture;
+                    }
+            }
+
+            return null;
+        }
+
         public Camera Cam { get; set; }
 
         private RenderTexture m_sourceTex;
@@ -144,6 +208,7 @@ namespace Disguise.RenderStream
         UInt64 m_streamHandle;
         int m_width;
         int m_height;
+        RSPixelFormat m_pixelFormat;
         Rect m_frameRegion;
         public Rect subRegion => m_frameRegion;
 

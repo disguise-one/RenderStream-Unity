@@ -553,7 +553,12 @@ namespace Disguise.RenderStream
             return m_getFrameCamera(streamHandle, ref outCameraData);
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
-        
+
+        public RS_ERROR useDX12SharedHeapFlag(ref UseDX12SharedHeapFlag flag)
+        {
+            return m_useDX12SharedHeapFlag(ref flag);
+        }
+
         public GraphicsDeviceType GraphicsDeviceType => m_GraphicsDeviceType;
         
         bool GraphicsDeviceTypeIsSupported => m_GraphicsDeviceType is GraphicsDeviceType.Direct3D11 or GraphicsDeviceType.Direct3D12;
