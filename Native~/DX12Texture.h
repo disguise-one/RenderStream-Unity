@@ -1,9 +1,4 @@
 #pragma once
-#include <string>
-
-#include <wrl.h>
-using namespace Microsoft::WRL;
-
 #include "d3d12.h"
 
 #include "Logger.h"
@@ -86,7 +81,7 @@ ID3D12Resource* CreateTexture(const char* name, int width, int height, PixelForm
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
     desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
     const D3D12_HEAP_FLAGS flags = D3D12_HEAP_FLAG_SHARED;
     const D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -97,57 +92,14 @@ ID3D12Resource* CreateTexture(const char* name, int width, int height, PixelForm
 
     if (result != S_OK)
     {
-        s_Logger->LogError("CreateCommittedResource failed: ", result);
+        s_Logger->LogError("CreateTexture: CreateCommittedResource failed: ", result);
         return nullptr;
     }
 
-    resource->SetName(StrToWstr(name).c_str());
+    if (name != nullptr)
+    {
+        resource->SetName(StrToWstr(name).c_str());
+    }
 
     return resource;
 }
-
-class DX12Texture
-{
-public:
-
-    DX12Texture(const char* name, int width, int height, PixelFormat format):
-        m_Name(name),
-        m_Width(width),
-        m_Height(height),
-        m_Format(format),
-        m_Texture(nullptr),
-        m_IsInitialized(false)
-    {
-
-    }
-
-    void Update(ID3D12Resource* source)
-    {
-        if (!m_Texture)
-        {
-            InitializeTexture();
-        }
-
-        UpdateTexture(source);
-    }
-
-private:
-
-    void InitializeTexture()
-    {
-        m_Texture = CreateTexture(m_Name, m_Width, m_Height, m_Format);
-        m_IsInitialized = m_Texture != nullptr;
-    }
-
-    void UpdateTexture(ID3D12Resource* source)
-    {
-
-    }
-
-    const char* m_Name;
-	int m_Width;
-	int m_Height;
-    PixelFormat m_Format;
-    ComPtr<ID3D12Resource> m_Texture;
-    bool m_IsInitialized;
-};

@@ -8,6 +8,8 @@ class IDXGISwapChain;
 #include "d3d12.h"
 #include "Unity/IUnityGraphicsD3D12.h"
 
+#include "Logger.h"
+
 class DX12System
 {
 public:
@@ -25,6 +27,20 @@ public:
 			m_Device = m_UnityGraphics->GetDevice();
 			m_CommandQueue = m_UnityGraphics->GetCommandQueue();
 			m_IsInitialized = m_Device != nullptr && m_CommandQueue != nullptr;
+
+			if (m_Device == nullptr)
+			{
+				s_Logger->LogError("DX12System: Failed to fetch DX12 device.");
+			}
+
+			if (m_CommandQueue == nullptr)
+			{
+				s_Logger->LogError("DX12System: Failed to fetch DX12 command queue.");
+			}
+		}
+		else
+		{
+			s_Logger->LogError("DX12System: Failed to fetch DX12 interface.");
 		}
 	}
 

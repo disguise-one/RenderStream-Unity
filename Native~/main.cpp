@@ -1,7 +1,5 @@
 #include "PublicAPI.h"
 
-#include <mutex>
-
 #include "Unity/IUnityInterface.h"
 #include "Unity/IUnityGraphics.h"
 
@@ -11,13 +9,6 @@
 
 static IUnityInterfaces* s_UnityInterfaces = nullptr;
 static IUnityGraphics* s_Graphics = nullptr;
-static UnityGfxRenderer s_RendererType = kUnityGfxRendererNull;
-
-// Local mutex object used to prevent race conditions between the main thread
-// and the render thread. This should be locked at the following points:
-// - OnRenderEvent (this is the only point called from the render thread)
-// - Plugin functions that use the Spout API functions.
-std::mutex s_Lock;
 
 // Unity plugin load event
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
@@ -54,21 +45,15 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
     {
         case kUnityGfxDeviceEventInitialize:
         {
-            if (s_Graphics != nullptr)
+            if (s_Graphics != nullptr && s_Graphics->GetRenderer() == kUnityGfxRendererD3D12)
             {
-                s_RendererType = s_Graphics->GetRenderer();
-
-                if (s_RendererType == kUnityGfxRendererD3D12)
-                {
-                    s_DX12System = std::make_unique<DX12System>(s_UnityInterfaces);
-                }
+                s_DX12System = std::make_unique<DX12System>(s_UnityInterfaces);
             }
 
             break;
         }
         case kUnityGfxDeviceEventShutdown:
         {
-            s_RendererType = kUnityGfxRendererNull;
             s_DX12System.reset();
 
             break;
@@ -84,30 +69,6 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
     };
 }
 
-void UNITY_INTERFACE_API
-OnRenderEvent(int eventId, void* eventData)
-{
-    std::lock_guard<std::mutex> guard(s_Lock);
-
-    // TODO
-
-    /*auto data = reinterpret_cast<const EventData*>(eventData);
-
-    switch (eventId)
-    {
-
-    }
-
-    if (event_id == event_updateSender) data->sender->update(data->texture);
-    if (event_id == event_closeSender) delete data->sender;*/
-}
-
-extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT
-GetRenderEventCallback()
-{
-    return OnRenderEvent;
-}
-
 extern "C" bool UNITY_INTERFACE_EXPORT
 IsInitialized()
 {
@@ -117,28 +78,35 @@ IsInitialized()
 extern "C" UNITY_INTERFACE_EXPORT void*
 GetD3D12Device()
 {
+    if (!IsInitialized())
+    {
+        s_Logger->LogError("GetD3D12Device: called before successful initialization.");
+        return nullptr;
+    }
+
     return s_DX12System->GetDevice();
 }
 
 extern "C" UNITY_INTERFACE_EXPORT void*
 GetD3D12CommandQueue()
 {
+    if (!IsInitialized())
+    {
+        s_Logger->LogError("GetD3D12CommandQueue: called before successful initialization.");
+        return nullptr;
+    }
+
     return s_DX12System->GetCommandQueue();
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT *
+extern "C" UNITY_INTERFACE_EXPORT void*
 CreateNativeTexture(const char* name, int width, int height, int pixelFormat)
 {
+    if (!IsInitialized())
+    {
+        s_Logger->LogError("CreateNativeTexture: called before successful initialization.");
+        return nullptr;
+    }
+
     return CreateTexture(name, width, height, static_cast<PixelFormat>(pixelFormat));
 }
-
-extern "C" DX12Texture UNITY_INTERFACE_EXPORT *
-CreateTexture(const char* name, int width, int height, int pixelFormat)
-{
-    return new DX12Texture(name, width, height, static_cast<PixelFormat>(pixelFormat));
-}
-
-//extern "C" UNITY_INTERFACE_EXPORT void* GetD3D12Device()
-//{
-//    return s_D3D12Device;
-//}
