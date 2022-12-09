@@ -89,7 +89,7 @@ namespace Disguise.RenderStream
         public static extern IntPtr GetD3D12CommandQueue();
 
         [DllImport(PluginName)]
-        public static extern IntPtr CreateNativeTexture(string name, int width, int height, int pixelFormat);
+        public static extern IntPtr CreateNativeTexture([MarshalAs(UnmanagedType.LPWStr)] string name, int width, int height, int pixelFormat);
     }
 #endif
 }
