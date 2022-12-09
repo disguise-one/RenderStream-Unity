@@ -181,7 +181,7 @@ namespace Disguise.RenderStream
 #if NET_4_6
             // Get the node info from the Win32 registry. Use the Set-NodeProperty.ps1 script (look for it in the
             // Scripts directory in the repo root) to set these values.
-            using var clusterKey = Registry.LocalMachine.OpenSubKey("Software\\Unity Technologies\\ClusterDisplay", true);
+            using var clusterKey = Registry.LocalMachine.OpenSubKey("Software\\Unity Technologies\\ClusterDisplay");
             if (clusterKey != null)
             {
                 clusterParams.NodeID = (byte)(int)clusterKey.GetValue("NodeID");
