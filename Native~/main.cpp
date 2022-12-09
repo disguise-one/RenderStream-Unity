@@ -7,6 +7,8 @@
 #include "DX12System.h"
 #include "DX12Texture.h"
 
+using namespace NativeRenderingPlugin;
+
 static IUnityInterfaces* s_UnityInterfaces = nullptr;
 static IUnityGraphics* s_Graphics = nullptr;
 
@@ -38,6 +40,7 @@ UnityPluginUnload()
     }
 }
 
+// Always called on the main thread, even by IUnityGraphics 
 static void UNITY_INTERFACE_API
 OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 {
@@ -100,7 +103,7 @@ GetD3D12CommandQueue()
 }
 
 extern "C" UNITY_INTERFACE_EXPORT void*
-CreateNativeTexture(const char* name, int width, int height, int pixelFormat)
+CreateNativeTexture(const LPCWSTR name, int width, int height, int pixelFormat)
 {
     if (!IsInitialized())
     {

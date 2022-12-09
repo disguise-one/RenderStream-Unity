@@ -39,7 +39,7 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_RGBA16: return TextureFormat.RGBAFloat;
                 case RSPixelFormat.RS_FMT_RGBA8: return TextureFormat.RGBA32;
                 case RSPixelFormat.RS_FMT_RGBX8: return TextureFormat.RGBA32;
-                default: return TextureFormat.BGRA32;
+                default: throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -72,7 +72,7 @@ namespace Disguise.RenderStream
 
         // non-isolated functions, these require init prior to use
 
-        unsafe delegate RS_ERROR pUseDX12SharedHeapFlag(ref UseDX12SharedHeapFlag flag);
+        unsafe delegate RS_ERROR pUseDX12SharedHeapFlag(out UseDX12SharedHeapFlag flag);
         unsafe delegate RS_ERROR pSaveSchema(string assetPath, /*Schema**/ IntPtr schema); // Save schema for project file/custom executable at (assetPath)
         unsafe delegate RS_ERROR pLoadSchema(string assetPath, /*Out*/ /*Schema**/ IntPtr schema, /*InOut*/ ref UInt32 nBytes); // Load schema for project file/custom executable at (assetPath) into a buffer of size (nBytes) starting at (schema)
 
@@ -554,9 +554,9 @@ namespace Disguise.RenderStream
             //return RS_ERROR.RS_ERROR_UNSPECIFIED;
         }
 
-        public RS_ERROR useDX12SharedHeapFlag(ref UseDX12SharedHeapFlag flag)
+        public RS_ERROR useDX12SharedHeapFlag(out UseDX12SharedHeapFlag flag)
         {
-            return m_useDX12SharedHeapFlag(ref flag);
+            return m_useDX12SharedHeapFlag(out flag);
         }
 
         public GraphicsDeviceType GraphicsDeviceType => m_GraphicsDeviceType;

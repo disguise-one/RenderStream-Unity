@@ -10,20 +10,26 @@ class IDXGISwapChain;
 
 #include "Logger.h"
 
-class DX12System
+namespace NativeRenderingPlugin
 {
-public:
-
-	DX12System(IUnityInterfaces* unityInterfaces):
-		m_UnityGraphics(nullptr),
-		m_Device(nullptr),
-		m_CommandQueue(nullptr),
-		m_IsInitialized(false)
+	class DX12System
 	{
-		m_UnityGraphics = unityInterfaces->Get<IUnityGraphicsD3D12v5>();
+	public:
 
-		if (m_UnityGraphics != nullptr)
+		DX12System(IUnityInterfaces* unityInterfaces) :
+			m_UnityGraphics(nullptr),
+			m_Device(nullptr),
+			m_CommandQueue(nullptr),
+			m_IsInitialized(false)
 		{
+			m_UnityGraphics = unityInterfaces->Get<IUnityGraphicsD3D12v5>();
+
+			if (m_UnityGraphics == nullptr)
+			{
+				s_Logger->LogError("DX12System: Failed to fetch DX12 interface.");
+				return;
+			}
+
 			m_Device = m_UnityGraphics->GetDevice();
 			m_CommandQueue = m_UnityGraphics->GetCommandQueue();
 			m_IsInitialized = m_Device != nullptr && m_CommandQueue != nullptr;
@@ -38,33 +44,29 @@ public:
 				s_Logger->LogError("DX12System: Failed to fetch DX12 command queue.");
 			}
 		}
-		else
+
+		bool IsInitialized() const
 		{
-			s_Logger->LogError("DX12System: Failed to fetch DX12 interface.");
+			return m_IsInitialized;
 		}
-	}
 
-	bool IsInitialized() const
-	{
-		return m_IsInitialized;
-	}
+		ID3D12Device* GetDevice() const
+		{
+			return m_Device;
+		}
 
-	ID3D12Device* GetDevice() const
-	{
-		return m_Device;
-	}
+		ID3D12CommandQueue* GetCommandQueue() const
+		{
+			return m_CommandQueue;
+		}
 
-	ID3D12CommandQueue* GetCommandQueue() const
-	{
-		return m_CommandQueue;
-	}
+	private:
 
-private:
+		IUnityGraphicsD3D12v5* m_UnityGraphics;
+		ID3D12Device* m_Device;
+		ID3D12CommandQueue* m_CommandQueue;
+		bool m_IsInitialized;
+	};
 
-	IUnityGraphicsD3D12v5* m_UnityGraphics;
-	ID3D12Device* m_Device;
-	ID3D12CommandQueue* m_CommandQueue;
-	bool m_IsInitialized;
-};
-
-inline std::unique_ptr<DX12System> s_DX12System;
+	inline std::unique_ptr<DX12System> s_DX12System;
+}

@@ -151,7 +151,6 @@
     <ClInclude Include="Unity\IUnityGraphicsD3D12.h" />
     <ClInclude Include="Unity\IUnityInterface.h" />
     <ClInclude Include="Unity\IUnityLog.h" />
-    <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

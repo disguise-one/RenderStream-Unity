@@ -15,6 +15,7 @@ namespace Disguise.RenderStream
             public CameraResponseData responseData;
         }
 
+        // Should match PluginEntry.ToTextureFormat
         NativeRenderingPlugin.PixelFormat ToNativeRenderingPluginFormat(RSPixelFormat rsPixelFormat)
         {
             switch (rsPixelFormat)
@@ -25,7 +26,7 @@ namespace Disguise.RenderStream
                 case RSPixelFormat.RS_FMT_RGBA16: return NativeRenderingPlugin.PixelFormat.RGBA16;
                 case RSPixelFormat.RS_FMT_RGBA8: return NativeRenderingPlugin.PixelFormat.RGBA8;
                 case RSPixelFormat.RS_FMT_RGBX8: return NativeRenderingPlugin.PixelFormat.RGBA8;
-                default: return NativeRenderingPlugin.PixelFormat.BGRA8;
+                default: throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -147,8 +148,7 @@ namespace Disguise.RenderStream
                     return new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, false);
                 
                 case GraphicsDeviceType.Direct3D12:
-                    var heapFlag = UseDX12SharedHeapFlag.RS_DX12_DO_NOT_USE_SHARED_HEAP_FLAG;
-                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(ref heapFlag);
+                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(out var heapFlag);
                     if (error != RS_ERROR.RS_ERROR_SUCCESS)
                         Debug.LogError(string.Format("Error checking shared heap flag: {0}", error));
 
@@ -175,8 +175,7 @@ namespace Disguise.RenderStream
                     return texture;
                 
                 case GraphicsDeviceType.Direct3D12:
-                    var heapFlag = UseDX12SharedHeapFlag.RS_DX12_DO_NOT_USE_SHARED_HEAP_FLAG;
-                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(ref heapFlag);
+                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(out var heapFlag);
                     if (error != RS_ERROR.RS_ERROR_SUCCESS)
                         Debug.LogError(string.Format("Error checking shared heap flag: {0}", error));
 
