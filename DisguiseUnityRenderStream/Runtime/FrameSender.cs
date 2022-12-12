@@ -28,16 +28,21 @@ namespace Disguise.RenderStream
             m_streamHandle = stream.handle;
             m_width = (int)stream.width;
             m_height = (int)stream.height;
+            m_pixelFormat = stream.format;
 
             m_frameRegion = new Rect(stream.clipping.left, stream.clipping.top, stream.clipping.right - stream.clipping.left, stream.clipping.bottom - stream.clipping.top);
 
-            RenderTextureDescriptor desc = new RenderTextureDescriptor(m_width, m_height, PluginEntry.ToRenderTextureFormat(stream.format), 24);
+            RenderTextureDescriptor desc = new RenderTextureDescriptor(m_width, m_height, PluginEntry.ToRenderTextureFormat(m_pixelFormat), 24);
             m_sourceTex = new RenderTexture(desc)
             {
                 name = m_name + " Texture"
             };
             Cam.targetTexture = m_sourceTex;
-            m_convertedTex = new Texture2D(m_sourceTex.width, m_sourceTex.height, PluginEntry.ToTextureFormat(stream.format), false, false);
+            m_convertedTex = DisguiseTextures.CreateTexture(m_sourceTex.width, m_sourceTex.height, m_pixelFormat, stream.name + " Converted Texture");
+            if (m_convertedTex == null)
+            {
+                Debug.LogError("Failed to create texture for Disguise");
+            }
 
             Debug.Log(string.Format("Created stream {0} with handle {1}", m_name, m_streamHandle));
         }
@@ -50,8 +55,21 @@ namespace Disguise.RenderStream
         public void SendFrame(Texture2D frame)
         {
             SenderFrameTypeData data = new SenderFrameTypeData();
-            data.dx11_resource = frame.GetNativeTexturePtr();
-            RS_ERROR error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, ref m_responseData);
+            RS_ERROR error = RS_ERROR.RS_ERROR_SUCCESS;
+
+            switch (PluginEntry.instance.GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                    data.dx11_resource = frame.GetNativeTexturePtr();
+                    error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, ref m_responseData);
+                    break;
+                
+                case GraphicsDeviceType.Direct3D12:
+                    data.dx12_resource = frame.GetNativeTexturePtr();
+                    error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX12_TEXTURE, data, ref m_responseData);
+                    break;
+            }
+            
             if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 Debug.LogError(string.Format("Error sending frame: {0}", error));
         }
@@ -64,7 +82,13 @@ namespace Disguise.RenderStream
             m_lastFrameCount = Time.frameCount;
 
             if (m_convertedTex.width != m_sourceTex.width || m_convertedTex.height != m_sourceTex.height)
-                m_convertedTex.Reinitialize(m_sourceTex.width, m_sourceTex.height, m_convertedTex.format, false);
+            {
+                m_convertedTex = DisguiseTextures.ResizeTexture(m_convertedTex, m_width, m_height, m_pixelFormat);
+                if (m_convertedTex == null)
+                {
+                    Debug.LogError("Failed to resize texture for Disguise");
+                }
+            }
 
             var cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
             unsafe
@@ -114,6 +138,7 @@ namespace Disguise.RenderStream
         UInt64 m_streamHandle;
         int m_width;
         int m_height;
+        RSPixelFormat m_pixelFormat;
         Rect m_frameRegion;
         public Rect subRegion => m_frameRegion;
 
