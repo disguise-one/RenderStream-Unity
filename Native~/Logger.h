@@ -56,6 +56,7 @@ namespace NativeRenderingPlugin
         static std::string FormatErrorMessage(const char* msg, int errorCode)
         {
             std::string str = msg;
+            str += ": ";
             str += std::to_string(errorCode);
             return str;
         }
