@@ -2,11 +2,14 @@
 using System;
 using System.IO;
 using System.Threading;
+#if NET_4_6
 using Microsoft.Win32;
+#endif
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Unity.ClusterDisplay;
 using Unity.ClusterDisplay.Utils;
+using UnityEngine.Scripting;
 
 namespace Disguise.RenderStream
 {
@@ -18,11 +21,12 @@ namespace Disguise.RenderStream
     /// The Cluster Display synchronization functionality keeps render nodes in lockstep, which is necessary for
     /// physics, visual effects, and other computed/simulated behaviors.
     /// </remarks>
+    [ClusterParamProcessor]
     class DisguiseRenderStreamWithCluster : DisguiseRenderStream, IDisposable
     {
         EventBus<FrameData> m_FrameDataBus;
         IDisposable m_FollowerFrameDataSubscription;
-        
+
         /// <summary>
         /// An instance of <see cref="ClusterSync"/> that we own. If null, it means cluster rendering is disabled or
         /// there is already another instance of <see cref="ClusterSync"/>.
@@ -32,29 +36,8 @@ namespace Disguise.RenderStream
         internal DisguiseRenderStreamWithCluster(ManagedSchema schema)
             : base(schema) { }
 
-        void InitializeClusterSyncInstance()
-        {
-            if (!ServiceLocator.TryGet<IClusterSyncState>(out _))
-            {
-                var settings = DetectSettings();
-                if (settings.ClusterLogicSpecified)
-                {
-                    m_ClusterSync = new ClusterSync("RenderStreamCluster");
-                    m_ClusterSync.EnableClusterDisplay(settings);
-
-                    ServiceLocator.Provide<IClusterSyncState>(m_ClusterSync);
-                }
-            }
-            else
-            {
-                ClusterDebug.LogWarning("ClusterSync was previously initialized");
-            }
-        }
-
         protected override void Initialize()
         {
-            InitializeClusterSyncInstance();
-
             ServiceLocator.TryGet(out IClusterSyncState clusterSyncState);
             if (clusterSyncState is not { IsClusterLogicEnabled: true })
             {
@@ -63,13 +46,13 @@ namespace Disguise.RenderStream
                 base.Initialize();
                 return;
             }
-            
+
             if (m_FrameDataBus != null)
             {
                 ClusterDebug.LogWarning("RenderStream is already registered with Cluster Display");
                 return;
             }
-         
+
             m_FrameDataBus = new EventBus<FrameData>(clusterSyncState);
             switch (clusterSyncState.NodeRole)
             {
@@ -125,10 +108,10 @@ namespace Disguise.RenderStream
         {
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
             RS_ERROR error = PluginEntry.instance.beginFollowerFrame(emitterFrameData.tTracked);
-            
+
             Debug.Assert(error != RS_ERROR.RS_NOT_INITIALISED);
             LatestFrameData = emitterFrameData;
-            
+
             if (error == RS_ERROR.RS_ERROR_QUIT)
                 Application.Quit();
             if (error == RS_ERROR.RS_ERROR_STREAMS_CHANGED)
@@ -149,56 +132,52 @@ namespace Disguise.RenderStream
             }
 
             HasNewFrameData = (error == RS_ERROR.RS_ERROR_SUCCESS);
-        
+
             if (HasNewFrameData)
             {
                 ProcessFrameData(LatestFrameData);
             }
         }
-        
-        static ClusterParams DetectSettings()
+
+        [ClusterParamProcessorMethod, Preserve]
+        public static ClusterParams ProcessClusterParams(ClusterParams clusterParams)
         {
             var commandLineArgs = Environment.GetCommandLineArgs();
-            var repeaterCountIdx = Array.IndexOf(commandLineArgs, "-nodes");
-            int? repeaterCount =
+            var repeaterCountIdx = Array.IndexOf(commandLineArgs, "-followers");
+            int? maybeRepeaterCount =
                 repeaterCountIdx > 0 && commandLineArgs.Length > repeaterCountIdx + 1 &&
                 int.TryParse(commandLineArgs[repeaterCountIdx + 1], out var repeaterCountArg)
                     ? repeaterCountArg
                     : null;
 
-            ClusterDebug.Log($"Trying to assign ids for {repeaterCount} repeaters");
+            ClusterDebug.Log($"Trying to assign ids for {maybeRepeaterCount} repeaters");
 
-            var clusterParams = new ClusterParams
-            {
-                Port = 25690,
-                MulticastAddress = "224.0.1.0",
-                ClusterLogicSpecified = true,
-                CommunicationTimeout = TimeSpan.FromSeconds(5),
-                HandshakeTimeout = TimeSpan.FromSeconds(10),
-                NodeID = 255    // placeholder
-            };
-
+            var detectedNodeId = false;
+            clusterParams.Fence = FrameSyncFence.External;
 #if NET_4_6
+
             // Get the node info from the Win32 registry. Use the Set-NodeProperty.ps1 script (look for it in the
             // Scripts directory in the repo root) to set these values.
             using var clusterKey = Registry.LocalMachine.OpenSubKey("Software\\Unity Technologies\\ClusterDisplay");
             if (clusterKey != null)
             {
+                detectedNodeId = true;
                 clusterParams.NodeID = (byte)(int)clusterKey.GetValue("NodeID");
-                clusterParams.RepeaterCount = repeaterCount ?? (int)clusterKey.GetValue("RepeaterCount");
+                clusterParams.RepeaterCount = maybeRepeaterCount ?? (int)clusterKey.GetValue("RepeaterCount");
                 clusterParams.MulticastAddress = (string)clusterKey.GetValue("MulticastAddress");
                 clusterParams.Port = (int)clusterKey.GetValue("MulticastPort");
                 clusterParams.AdapterName = (string)clusterKey.GetValue("AdapterName");
             }
-            else if (repeaterCount.HasValue)
+            else if (maybeRepeaterCount.HasValue)
             {
 #endif
-                clusterParams.RepeaterCount = repeaterCount.Value;
+                clusterParams.RepeaterCount = maybeRepeaterCount.Value;
+
                 // If we're running several nodes on the same machine, use a single-access file to keep track
                 // of node ids in use.
                 var retries = 0;
                 var nodeIdFilePath = Path.Combine(Path.GetTempPath(), Application.productName + ".node");
-                while (clusterParams.NodeID == 255 && retries < 10)
+                while (!detectedNodeId && retries < 10)
                 {
                     try
                     {
@@ -213,6 +192,7 @@ namespace Disguise.RenderStream
                         using var writer = new StreamWriter(fileStream);
                         writer.Write(clusterParams.NodeID + 1);
                         fileStream.SetLength(fileStream.Position);
+                        detectedNodeId = true;
                     }
                     catch (Exception ex)
                     {
@@ -230,14 +210,18 @@ namespace Disguise.RenderStream
 #if NET_4_6
             }
 #endif
-            ClusterDebug.Log($"Auto-assigning node ID {clusterParams.NodeID} (repeaters: {clusterParams.RepeaterCount})");
-            // First one to start up gets to be the emitter - node 0
-            clusterParams.EmitterSpecified = clusterParams.NodeID == 0;
-
-            if (clusterParams.NodeID == 255 || clusterParams.RepeaterCount == 0)
+            if (!detectedNodeId || clusterParams.RepeaterCount == 0)
             {
-                ClusterDebug.LogWarning("Cannot obtain cluster settings. Cluster rendering will be disabled");
+                ClusterDebug.LogWarning("Cannot obtain Node ID. Cluster rendering will be disabled");
                 clusterParams.ClusterLogicSpecified = false;
+            }
+            else
+            {
+                ClusterDebug.Log($"Auto-assigning node ID {clusterParams.NodeID} (repeaters: {clusterParams.RepeaterCount})");
+
+                // Arbitrarily assign Node 0 as the emitter
+                clusterParams.EmitterSpecified = clusterParams.NodeID == 0;
+                clusterParams.ClusterLogicSpecified = true;
             }
 
             return clusterParams;
