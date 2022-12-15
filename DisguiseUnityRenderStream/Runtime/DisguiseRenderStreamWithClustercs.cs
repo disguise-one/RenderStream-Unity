@@ -1,15 +1,20 @@
 #if ENABLE_CLUSTER_DISPLAY
 using System;
-using System.IO;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
-#if NET_4_6
-using Microsoft.Win32;
-#endif
+using System.Threading.Tasks;
+using Disguise.RenderStream.Utils;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Unity.ClusterDisplay;
 using Unity.ClusterDisplay.Utils;
 using UnityEngine.Scripting;
+using Debug = UnityEngine.Debug;
 
 namespace Disguise.RenderStream
 {
@@ -61,6 +66,7 @@ namespace Disguise.RenderStream
                 case NodeRole.Emitter when !clusterSyncState.RepeatersDelayedOneFrame:
                 {
                     ClusterDebug.Log("Setting the node as Disguise RenderStream controller (no delay)");
+
                     // If we're only syncing the basic engine state (no custom data being computed during
                     // the frame), then we can cheat a bit to reduce latency, by publishing disguise FrameData
                     // *before* the sync point, so it will get transmitted on the current sync point (custom data is
@@ -72,6 +78,7 @@ namespace Disguise.RenderStream
                 case NodeRole.Emitter when clusterSyncState.RepeatersDelayedOneFrame:
                 {
                     ClusterDebug.Log("Setting the node as Disguise RenderStream controller (one frame delay)");
+
                     // Custom data is computed during the frame and transmitted at the next sync point, which requires
                     // repeaters to be operating 1 frame behind.
                     ClusterSyncLooper.onInstanceDoPreFrame += AwaitFrame;
@@ -103,7 +110,6 @@ namespace Disguise.RenderStream
 
         void PublishEmitterEvents() => m_FrameDataBus.Publish(LatestFrameData);
 
-    
         void BeginFollowerFrameOnRepeaterNode(FrameData emitterFrameData)
         {
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
@@ -150,83 +156,188 @@ namespace Disguise.RenderStream
                     ? repeaterCountArg
                     : null;
 
-            ClusterDebug.Log($"Trying to assign ids for {maybeRepeaterCount} repeaters");
-
-            var detectedNodeId = false;
-            clusterParams.Fence = FrameSyncFence.External;
-#if NET_4_6
-
-            // Get the node info from the Win32 registry. Use the Set-NodeProperty.ps1 script (look for it in the
-            // Scripts directory in the repo root) to set these values.
-            using var clusterKey = Registry.LocalMachine.OpenSubKey("Software\\Unity Technologies\\ClusterDisplay");
-            if (clusterKey != null)
+            if (maybeRepeaterCount.HasValue)
             {
-                detectedNodeId = true;
-                clusterParams.NodeID = (byte)(int)clusterKey.GetValue("NodeID");
-                clusterParams.RepeaterCount = maybeRepeaterCount ?? (int)clusterKey.GetValue("RepeaterCount");
-                clusterParams.MulticastAddress = (string)clusterKey.GetValue("MulticastAddress");
-                clusterParams.Port = (int)clusterKey.GetValue("MulticastPort");
-                clusterParams.AdapterName = (string)clusterKey.GetValue("AdapterName");
-            }
-            else if (maybeRepeaterCount.HasValue)
-            {
-#endif
                 clusterParams.RepeaterCount = maybeRepeaterCount.Value;
-
-                // If we're running several nodes on the same machine, use a single-access file to keep track
-                // of node ids in use.
-                var retries = 0;
-                var nodeIdFilePath = Path.Combine(Path.GetTempPath(), Application.productName + ".node");
-                while (!detectedNodeId && retries < 10)
-                {
-                    try
-                    {
-                        using var fileStream = new FileStream(nodeIdFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                        using var reader = new StreamReader(fileStream);
-                        if (!byte.TryParse(reader.ReadLine(), out clusterParams.NodeID))
-                        {
-                            clusterParams.NodeID = 0;
-                        }
-
-                        fileStream.Position = 0;
-                        using var writer = new StreamWriter(fileStream);
-                        writer.Write(clusterParams.NodeID + 1);
-                        fileStream.SetLength(fileStream.Position);
-                        detectedNodeId = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        retries++;
-                        ClusterDebug.Log($"Unable to access node ID file: {ex.Message}");
-                        Thread.Sleep(500);
-                    }
-                }
-
-                Application.quitting += () =>
-                {
-                    File.Delete(nodeIdFilePath);
-                };
-
-#if NET_4_6
             }
-#endif
-            if (!detectedNodeId || clusterParams.RepeaterCount == 0)
+
+            ClusterDebug.Log($"Trying to assign ids for {clusterParams.RepeaterCount} repeaters");
+            if (clusterParams.RepeaterCount < 1)
             {
-                ClusterDebug.LogWarning("Cannot obtain Node ID. Cluster rendering will be disabled");
-                clusterParams.ClusterLogicSpecified = false;
+                ClusterDebug.LogWarning("There are no repeater nodes specified.");
+                // Leave the parameters alone, skip the rest of the parameter processing.
+                // Other processors may still want to work with the parameters.
+                return clusterParams;
             }
-            else
+
+            try
             {
+                var adapterInfo = MulticastExtensions.SelectNetworkInterface(clusterParams.AdapterName);
+                clusterParams.NodeID = NegotiateNodeID(clusterParams, adapterInfo.address);
                 ClusterDebug.Log($"Auto-assigning node ID {clusterParams.NodeID} (repeaters: {clusterParams.RepeaterCount})");
+
+                clusterParams.AdapterName = adapterInfo.name;
+                clusterParams.Fence = FrameSyncFence.External;
+                clusterParams.ClusterLogicSpecified = true;
 
                 // Arbitrarily assign Node 0 as the emitter
                 clusterParams.EmitterSpecified = clusterParams.NodeID == 0;
-                clusterParams.ClusterLogicSpecified = true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                clusterParams.ClusterLogicSpecified = false;
             }
 
             return clusterParams;
         }
 
+        /// <summary>
+        /// Negotiate a distinct ID amongst other running render nodes. Uses the same multi-cast end point
+        /// as the core Cluster Display logic.
+        /// </summary>
+        /// <param name="clusterParams">Parameters containing the networking information.</param>
+        /// <param name="adapterAddress">The (unicast) IP address of the network interface we're negotiating on.</param>
+        /// <returns></returns>
+        /// <exception cref="TimeoutException">The operation timed out.</exception>
+        /// <exception cref="OperationCanceledException">Multiple errors were encountered. See the log for details.</exception>
+        static byte NegotiateNodeID(ClusterParams clusterParams, IPAddress adapterAddress)
+        {
+            var address = IPAddress.Parse(clusterParams.MulticastAddress);
+            var sendEndPoint = new IPEndPoint(address, clusterParams.Port);
+            var timeoutMilliseconds = (int)clusterParams.HandshakeTimeout.TotalMilliseconds;
+            
+            using var udpClient = new UdpClient();
+            udpClient.EnableMulticast(address,
+                clusterParams.Port,
+                adapterAddress,
+                timeoutMilliseconds);
+
+            int nodeIdResult;
+            var expectedNodeCount = clusterParams.RepeaterCount + 1;
+
+            const string announcePrefix = "8e310677-85cf-4c0c-8209-15890342c4e4";
+            const string readyPrefix = "772c27a7-e38d-42a9-835c-158f05dc50e0";
+            
+            // Message that indicates that we're available to join a group.
+            // Each node must have a unique announcement message.
+            var announceMessage = $"{announcePrefix}:{adapterAddress}-{Process.GetCurrentProcess().Id}";
+            
+            // Message that indicates that we're discovered a valid group.
+            var readyMessage = $"{readyPrefix}:{adapterAddress}-{Process.GetCurrentProcess().Id}";
+            var foundGroup = false;
+            
+            // Set up our listening and announcing tasks.
+            var cancellation = new CancellationTokenSource();
+            var token = cancellation.Token;
+            
+            var listen = Task.Run(async () =>
+            {
+                // Listen for messages, including from self
+                SortedSet<string> announcements = new();
+                HashSet<string> readyReports = new();
+                while (!token.IsCancellationRequested)
+                {
+                    var result = await udpClient.ReceiveAsync();
+                    var str = Encoding.UTF8.GetString(result.Buffer);
+                    Debug.Log($"Received negotiation message {str}");
+                    if (str.StartsWith(announcePrefix))
+                    {
+                        if (announcements.Add(str))
+                        {
+                            // We've received announcements from the expected nodes. We have a group.
+                            foundGroup = announcements.Count >= expectedNodeCount;
+                        }
+                    }
+                    else if (str.StartsWith(readyPrefix))
+                    {
+                        // We're going to keep going until each node is reporting that they have a group.
+                        if (readyReports.Add(str) && readyReports.Count >= expectedNodeCount)
+                        {
+                            Debug.Log($"All {expectedNodeCount} nodes reported ready. Stop listening for messages.");
+                            break;
+                        }
+                    }
+                }
+
+                // Done!
+                // At this point, we've found a group, and received "ready" announcements from all other nodes.
+                // Return all the announcements that we received from the completed group.
+                return announcements;
+            });
+
+            // Add a timeout to the listen task.
+            var listenWithTimeout = Task.WhenAny(listen,
+                Task.Run(async () =>
+                {
+                    await Task.Delay(clusterParams.HandshakeTimeout, token);
+                    return new List<string>();
+                }));
+
+            var announce = Task.Run(async () =>
+            {
+                var announceBytes = Encoding.UTF8.GetBytes(announceMessage);
+                var readyBytes = Encoding.UTF8.GetBytes(readyMessage);
+                while (!token.IsCancellationRequested)
+                {
+                    // Announce our presence to the network.
+                    // Even if we've already found a group, we want to continue announcing until this task
+                    // is cancelled (to give other nodes a chance to discover us).
+                    await udpClient.SendAsync(announceBytes, announceBytes.Length, sendEndPoint);
+                    if (foundGroup)
+                    {
+                        // Announce that we have a group
+                        Debug.Log("Reporting ready");
+                        await udpClient.SendAsync(readyBytes, readyBytes.Length, sendEndPoint);
+                    }
+                    await Task.Delay(100, token);
+                }
+            });
+
+            try
+            {
+                if (listenWithTimeout.Result == listen)
+                {
+                    // Now that we have a completed group, we can assign a node ID.
+                    var announcements = listen.Result;
+                    
+                    // Order the announcements in a list. The node ID will the index
+                    // of this process's message.
+                    nodeIdResult = announcements.ToList().IndexOf(announceMessage);
+                }
+                else
+                {
+                    throw new TimeoutException("Timed out waiting for announcements");
+                }
+            }
+            catch (AggregateException e)
+            {
+                foreach (var exception in e.InnerExceptions)
+                {
+                    Debug.LogException(exception);
+                }
+
+                throw new OperationCanceledException("");
+            }
+            finally
+            {
+                // Cancel outstanding tasks.
+                cancellation.Cancel();
+                try
+                {
+                    Task.WaitAll(new[] { listen, announce }, clusterParams.HandshakeTimeout);
+                }
+                catch (AggregateException e)
+                {
+                    // Nothing to do here.
+                    // This exception is should be coming from the "announce" task being cancelled forceably.
+                    // Errors from the "listen" task should have been caught already.
+                }
+            }
+
+            return (byte)nodeIdResult;
+        }
+        
         public void Dispose()
         {
             ClusterSyncLooper.onInstanceDoPreFrame -= AwaitFrame;
