@@ -41,8 +41,8 @@ namespace Disguise.RenderStream.Utils
         public static (string name, IPAddress address) SelectNetworkInterface(string adapterName)
         {
             var nics = NetworkInterface.GetAllNetworkInterfaces();
-            NetworkInterface firstUpNic = null;
-            UnicastIPAddressInformation firstUpNicIPAddress = null;
+            NetworkInterface bestNic = null;
+            UnicastIPAddressInformation bestNicAddress = null;
 
             foreach (var nic in nics)
             {
@@ -70,10 +70,10 @@ namespace Disguise.RenderStream.Utils
                 }
 
                 // If we have multiple candidate NICs, try to use the one with the highest reported speed.
-                if (firstUpNic == null || nic.Speed > firstUpNic.Speed)
+                if (bestNic == null || nic.Speed > bestNic.Speed)
                 {
-                    firstUpNic = nic;
-                    firstUpNicIPAddress = unicastAddressInfo;
+                    bestNic = nic;
+                    bestNicAddress = unicastAddressInfo;
                 }
 
                 if (!string.IsNullOrEmpty(adapterName) && nic.Name == adapterName)
@@ -83,22 +83,22 @@ namespace Disguise.RenderStream.Utils
                 }
             }
 
-            // If we reach this point then there was no explicit nic selected or the explicit nic is unavailable,
-            // use the first up nic as the automatic one
-            if (firstUpNic == null)
+            // If we reach this point then there was no explicit nic specified or the explicit nic is unavailable;
+            // use the "best" nic as the automatic one
+            if (bestNic == null)
             {
                 throw new InvalidOperationException("There are no available interfaces for Cluster Display communication.");
             }
 
             if (!string.IsNullOrEmpty(adapterName))
             {
-                Debug.LogError($"Unable to use explicit interface {adapterName}. Using \"{firstUpNic.Name}\" instead.");
+                Debug.LogError($"Unable to use explicit interface {adapterName}. Using \"{bestNic.Name}\" instead.");
             }
             else
             {
-                Debug.Log($"No explicit interface defined, defaulting to interface: \"{firstUpNic.Name}\".");
+                Debug.Log($"No explicit interface defined, defaulting to interface: \"{bestNic.Name}\".");
             }
-            return (firstUpNic.Name, firstUpNicIPAddress.Address);
+            return (bestNic.Name, bestNicAddress.Address);
         }
     }
 }
