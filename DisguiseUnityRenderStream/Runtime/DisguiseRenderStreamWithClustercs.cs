@@ -172,9 +172,11 @@ namespace Disguise.RenderStream
 
             try
             {
-                clusterParams.NodeID = NegotiateNodeID(clusterParams);
+                var adapterInfo = MulticastExtensions.SelectNetworkInterface(clusterParams.AdapterName);
+                clusterParams.NodeID = NegotiateNodeID(clusterParams, adapterInfo.address);
                 ClusterDebug.Log($"Auto-assigning node ID {clusterParams.NodeID} (repeaters: {clusterParams.RepeaterCount})");
 
+                clusterParams.AdapterName = adapterInfo.name;
                 clusterParams.Fence = FrameSyncFence.External;
                 clusterParams.ClusterLogicSpecified = true;
 
@@ -195,10 +197,11 @@ namespace Disguise.RenderStream
         /// as the core Cluster Display logic.
         /// </summary>
         /// <param name="clusterParams">Parameters containing the networking information.</param>
+        /// <param name="adapterAddress">The (unicast) IP address of the network interface we're negotiating on.</param>
         /// <returns></returns>
         /// <exception cref="TimeoutException">The operation timed out.</exception>
         /// <exception cref="OperationCanceledException">Multiple errors were encountered. See the log for details.</exception>
-        static byte NegotiateNodeID(ClusterParams clusterParams)
+        static byte NegotiateNodeID(ClusterParams clusterParams, IPAddress adapterAddress)
         {
             var address = IPAddress.Parse(clusterParams.MulticastAddress);
             var sendEndPoint = new IPEndPoint(address, clusterParams.Port);
@@ -207,18 +210,21 @@ namespace Disguise.RenderStream
             using var udpClient = new UdpClient();
             udpClient.EnableMulticast(address,
                 clusterParams.Port,
-                clusterParams.AdapterName,
+                adapterAddress,
                 timeoutMilliseconds);
 
             int nodeIdResult;
             var expectedNodeCount = clusterParams.RepeaterCount + 1;
+
+            const string announcePrefix = "8e310677-85cf-4c0c-8209-15890342c4e4";
+            const string readyPrefix = "772c27a7-e38d-42a9-835c-158f05dc50e0";
             
             // Message that indicates that we're available to join a group.
             // Each node must have a unique announcement message.
-            var announceMessage = $"announce:{Environment.MachineName}{Process.GetCurrentProcess().Id}";
+            var announceMessage = $"{announcePrefix}:{adapterAddress}-{Process.GetCurrentProcess().Id}";
             
             // Message that indicates that we're discovered a valid group.
-            var readyMessage = $"ready:{Environment.MachineName}{Process.GetCurrentProcess().Id}";
+            var readyMessage = $"{readyPrefix}:{adapterAddress}-{Process.GetCurrentProcess().Id}";
             var foundGroup = false;
             
             // Set up our listening and announcing tasks.
@@ -235,7 +241,7 @@ namespace Disguise.RenderStream
                     var result = await udpClient.ReceiveAsync();
                     var str = Encoding.UTF8.GetString(result.Buffer);
                     Debug.Log($"Received negotiation message {str}");
-                    if (str.StartsWith("announce"))
+                    if (str.StartsWith(announcePrefix))
                     {
                         if (announcements.Add(str))
                         {
@@ -243,7 +249,7 @@ namespace Disguise.RenderStream
                             foundGroup = announcements.Count >= expectedNodeCount;
                         }
                     }
-                    else if (str.StartsWith("ready"))
+                    else if (str.StartsWith(readyPrefix))
                     {
                         // We're going to keep going until each node is reporting that they have a group.
                         if (readyReports.Add(str) && readyReports.Count >= expectedNodeCount)
@@ -331,7 +337,7 @@ namespace Disguise.RenderStream
 
             return (byte)nodeIdResult;
         }
-
+        
         public void Dispose()
         {
             ClusterSyncLooper.onInstanceDoPreFrame -= AwaitFrame;

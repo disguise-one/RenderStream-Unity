@@ -11,27 +11,14 @@ namespace Disguise.RenderStream.Utils
 {
     static class MulticastExtensions
     {
-        public static void EnableMulticast(this UdpClient udpClient, IPAddress multicastIPAddress, int port, string adapterName = null, int timeoutMs = 5000)
+        public static void EnableMulticast(this UdpClient udpClient, IPAddress multicastIPAddress, int port, IPAddress adapterAddress, int timeoutMs = 5000)
         {
-            var (selectedNic, selectedNicAddress) = SelectNetworkInterface(adapterName);
-            if (selectedNic == null)
-            {
-                throw new IOException("There are no available network interfaces that support multicast");
-            }
-
-            Assert.IsNotNull(selectedNicAddress);
-            var adapterAddress = selectedNicAddress.Address;
-
             udpClient.Client.SendTimeout = timeoutMs;
             udpClient.Client.ReceiveTimeout = timeoutMs;
 
             // Ask to send the multicast traffic using the specified adapter
             udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
                 adapterAddress.GetAddressBytes());
-
-            // There should be only one hop between the emitter and repeater
-            // Food for thought: Should we make this configurable to work on slightly more complex network infrastructures?
-            udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
 
             // Allow multiple ClusterDisplay applications to bind on the same address and port. Useful for when running
             // multiple nodes locally and unit testing.
@@ -51,7 +38,7 @@ namespace Disguise.RenderStream.Utils
             udpClient.MulticastLoopback = true;
         }
 
-        static (NetworkInterface, UnicastIPAddressInformation) SelectNetworkInterface(string adapterName)
+        public static (string name, IPAddress address) SelectNetworkInterface(string adapterName)
         {
             var nics = NetworkInterface.GetAllNetworkInterfaces();
             NetworkInterface firstUpNic = null;
@@ -59,72 +46,59 @@ namespace Disguise.RenderStream.Utils
 
             foreach (var nic in nics)
             {
-                bool isExplicitNic = !string.IsNullOrEmpty(adapterName) && nic.Name == adapterName;
-                bool isUp = nic.OperationalStatus == OperationalStatus.Up;
-
-                if (!isUp)
-                {
-                    if (isExplicitNic)
-                    {
-                        Debug.LogError(
-                            $"Unable to use explicit interface: \"{nic.Name}\", the interface is down. Attempting to use the next available interface.");
-                    }
-
-                    continue;
-                }
-
-                var ipProperties = nic.GetIPProperties();
-                if (ipProperties == null || !ipProperties.MulticastAddresses.Any())
+                // Check if NIC supports multicast.
+                // Skip loopback adapter as they cause all sort of problems with multicast...
+                if (nic.OperationalStatus is not OperationalStatus.Up ||
+                    nic.NetworkInterfaceType is NetworkInterfaceType.Loopback ||
+                    !nic.SupportsMulticast)
                 {
                     continue;
                 }
 
-                if (!nic.SupportsMulticast)
+                // Check that NIC has multicast addresses
+                if (nic.GetIPProperties() is not { } ipProperties || !ipProperties.MulticastAddresses.Any())
                 {
                     continue;
                 }
 
-                UnicastIPAddressInformation nicIPAddress = null;
-                foreach (var ip in nic.GetIPProperties().UnicastAddresses)
-                {
-                    if (ip.Address.AddressFamily != AddressFamily.InterNetwork)
-                        continue;
-
-                    nicIPAddress = ip;
-                    break;
-                }
-
-                if (nicIPAddress == null)
+                // Check that NIC has unicast addresses
+                if (ipProperties.UnicastAddresses.FirstOrDefault(ip =>
+                        ip.Address.AddressFamily == AddressFamily.InterNetwork) is not
+                    { } unicastAddressInfo)
                 {
                     continue;
                 }
 
-                if (IPAddress.IsLoopback(nicIPAddress.Address))
+                // If we have multiple candidate NICs, try to use the one with the highest reported speed.
+                if (firstUpNic == null || nic.Speed > firstUpNic.Speed)
                 {
-                    // Skip loopback adapter as they cause all sort of problems with multicast...
-                    continue;
+                    firstUpNic = nic;
+                    firstUpNicIPAddress = unicastAddressInfo;
                 }
 
-                firstUpNic ??= nic;
-                firstUpNicIPAddress ??= nicIPAddress;
-                if (!isExplicitNic)
+                if (!string.IsNullOrEmpty(adapterName) && nic.Name == adapterName)
                 {
-                    continue;
+                    Debug.Log($"Selecting explicit interface: \"{nic.Name} with ip {unicastAddressInfo.Address}\".");
+                    return (nic.Name, unicastAddressInfo.Address);
                 }
-
-                Debug.Log($"Selecting explicit interface: \"{nic.Name} with ip {nicIPAddress.Address}\".");
-                return (nic, nicIPAddress);
             }
 
-            // If we reach this point then there was no explicit nic selected, use the first up nic as the automatic one
+            // If we reach this point then there was no explicit nic selected or the explicit nic is unavailable,
+            // use the first up nic as the automatic one
             if (firstUpNic == null)
             {
-                Debug.LogError($"There are NO available interfaces to bind cluster display to.");
-                return (null, null);
+                throw new InvalidOperationException("There are no available interfaces for Cluster Display communication.");
             }
 
-            Debug.Log($"No explicit interface defined, defaulting to interface: \"{firstUpNic.Name}\".");
-            return (firstUpNic, firstUpNicIPAddress);
+            if (!string.IsNullOrEmpty(adapterName))
+            {
+                Debug.LogError($"Unable to use explicit interface {adapterName}. Using \"{firstUpNic.Name}\" instead.");
+            }
+            else
+            {
+                Debug.Log($"No explicit interface defined, defaulting to interface: \"{firstUpNic.Name}\".");
+            }
+            return (firstUpNic.Name, firstUpNicIPAddress.Address);
         }
     }
 }
