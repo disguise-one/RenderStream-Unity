@@ -6,7 +6,7 @@ using UnityEngine.Rendering.Universal;
 
 namespace Disguise.RenderStream
 {
-    public class DepthCopy
+    class DepthCopy
     {
         public enum Mode
         {
