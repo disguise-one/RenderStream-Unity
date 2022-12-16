@@ -26,6 +26,7 @@ Shader "Hidden/Disguise/RenderStream/DepthCopyHDRP"
             Blend Off
 
             HLSLPROGRAM
+            #pragma multi_compile_local DEPTH_COPY_RAW DEPTH_COPY_EYE DEPTH_COPY_LINEAR01
             #pragma fragment Frag
             #pragma vertex Vert
             #include "DepthCopyHDRP.cginc"

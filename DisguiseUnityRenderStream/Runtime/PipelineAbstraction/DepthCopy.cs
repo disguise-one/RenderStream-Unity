@@ -8,7 +8,6 @@ namespace Disguise.RenderStream
 {
     public class DepthCopy
     {
-        // TODO only Linear01 right now, use shader keywords for the other modes
         public enum Mode
         {
             Raw,
@@ -23,17 +22,61 @@ namespace Disguise.RenderStream
             public bool IsValid => m_depthOutput != null;
         }
         
+        // TODO: use ShaderVariantCollection + preload in GraphicsSettings
+        struct ShaderVariantResources : IDisposable
+        {
+            public ShaderResources m_Raw;
+            public ShaderResources m_Eye;
+            public ShaderResources m_linear01;
+
+            public bool IsLoaded => m_Raw.IsLoaded && m_Eye.IsLoaded && m_linear01.IsLoaded;
+
+            public void Create(string shaderPath, string shaderPass)
+            {
+                m_Raw.Create(shaderPath, shaderPass);
+                m_Eye.Create(shaderPath, shaderPass);
+                m_linear01.Create(shaderPath, shaderPass);
+                
+                m_Raw.SetKeyword("DEPTH_COPY_RAW", true);
+                m_Eye.SetKeyword("DEPTH_COPY_EYE", true);
+                m_linear01.SetKeyword("DEPTH_COPY_LINEAR01", true);
+            }
+
+            public void Dispose()
+            {
+                m_Raw.Dispose();
+                m_Eye.Dispose();
+                m_linear01.Dispose();
+            }
+        }
+        
         struct ShaderResources : IDisposable
         {
             public Shader m_shader;
             public Material m_material;
             public int m_pass;
 
+            public bool IsLoaded => m_shader != null && m_material != null && m_pass >= 0;
+
+            public void SetKeyword(string keyword, bool value)
+            {
+                if (IsLoaded)
+                {
+                    if (value)
+                        m_material.EnableKeyword(keyword);
+                    else
+                        m_material.DisableKeyword(keyword);
+                }
+            }
+
             public void Create(string shaderPath, string shaderPass)
             {
                 m_shader = Shader.Find(shaderPath);
-                m_material = CoreUtils.CreateEngineMaterial(m_shader);
-                m_pass = m_material.FindPass(shaderPass);
+                if (m_shader != null)
+                {
+                    m_material = CoreUtils.CreateEngineMaterial(m_shader);
+                    m_pass = m_material.FindPass(shaderPass);
+                }
             }
 
             public void Dispose()
@@ -41,30 +84,58 @@ namespace Disguise.RenderStream
                 CoreUtils.Destroy(m_material);
             }
         }
+
+        public Mode mode
+        {
+            get => m_mode;
+            set
+            {
+                m_mode = value;
+                
+                switch (m_mode)
+                {
+                    case Mode.Raw:
+                        m_shaderResources = s_shaderVariantResources.m_Raw;
+                        break;
+                    case Mode.Eye:
+                        m_shaderResources = s_shaderVariantResources.m_Eye;
+                        break;
+                    case Mode.Linear01:
+                        m_shaderResources = s_shaderVariantResources.m_linear01;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+        }
         
         const string k_profilerTag = "Disguise Depth Copy";
         const string k_ShaderPass = "Depth Copy";
 
-        static ShaderResources s_shaderResources;
+        static ShaderVariantResources s_shaderVariantResources;
+
+        Mode m_mode = Mode.Linear01;
+        ShaderResources m_shaderResources;
 
         public DepthCopy()
         {
-            if (s_shaderResources.m_shader == null)
+            if (!s_shaderVariantResources.IsLoaded)
             {
 #if HDRP_13_1_8_OR_NEWER
-                s_shaderResources.Create("Hidden/Disguise/RenderStream/DepthCopyHDRP", k_ShaderPass);
+                s_shaderVariantResources.Create("Hidden/Disguise/RenderStream/DepthCopyHDRP", k_ShaderPass);
 #elif URP_13_1_8_OR_NEWER
-                s_shaderResources.Create("Hidden/Disguise/RenderStream/DepthCopyURP", k_ShaderPass);
+                s_shaderVariantResources.Create("Hidden/Disguise/RenderStream/DepthCopyURP", k_ShaderPass);
 #endif
                 
-                Assert.IsNotNull(s_shaderResources.m_shader, "Couldn't load the shader for DepthCopy");
-                Assert.IsNotNull(s_shaderResources.m_material, "Couldn't create the material for DepthCopy");
+                Assert.IsTrue(s_shaderVariantResources.IsLoaded, "Couldn't load the shader resources for DepthCopy");
             }
+
+            mode = Mode.Linear01;
         }
 
         public void Execute(ScriptableRenderContext context, FrameData data)
         {
-            if (!data.IsValid || s_shaderResources.m_material == null)
+            if (!data.IsValid || !m_shaderResources.IsLoaded)
                 return;
 
             ValidatePipeline();
@@ -84,7 +155,7 @@ namespace Disguise.RenderStream
         
         void IssueCommands(CommandBuffer cmd, FrameData data)
         {
-            CoreUtils.DrawFullScreen(cmd, s_shaderResources.m_material, data.m_depthOutput, shaderPassId: s_shaderResources.m_pass);
+            CoreUtils.DrawFullScreen(cmd, m_shaderResources.m_material, data.m_depthOutput, shaderPassId: m_shaderResources.m_pass);
         }
 
         void ValidatePipeline()

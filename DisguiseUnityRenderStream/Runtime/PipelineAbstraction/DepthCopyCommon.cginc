@@ -28,7 +28,7 @@ float Frag(Varyings input) : SV_Target
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
     const float2 uv = input.texcoord.xy;
-    return SceneDepth_Linear01(uv);
+    return SceneDepth_Auto(uv);
 }
 
 #endif

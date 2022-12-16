@@ -17,7 +17,8 @@ namespace Disguise.RenderStream
                 m_colorFormat = RenderTextureFormat.ARGB32,
                 m_depthBufferBits = 24,
                 m_copyDepth = false,
-                m_depthCopyFormat = RenderTextureFormat.RFloat
+                m_depthCopyFormat = RenderTextureFormat.RFloat,
+                m_depthCopyMode = DepthCopy.Mode.Linear01
             };
             
             public int m_width;
@@ -26,6 +27,7 @@ namespace Disguise.RenderStream
             public int m_depthBufferBits;
             public bool m_copyDepth;
             public RenderTextureFormat m_depthCopyFormat;
+            public DepthCopy.Mode m_depthCopyMode;
 
             public bool IsValid => m_width > 0 && m_height > 0;
 
@@ -47,7 +49,15 @@ namespace Disguise.RenderStream
 
             public override int GetHashCode()
             {
-                return HashCode.Combine(m_width, m_height, (int)m_colorFormat, m_depthBufferBits, m_copyDepth, (int)m_depthCopyFormat);
+                return HashCode.Combine(
+                    m_width,
+                    m_height,
+                    (int)m_colorFormat,
+                    m_depthBufferBits,
+                    m_copyDepth,
+                    (int)m_depthCopyFormat,
+                    (int)m_depthCopyMode
+                );
             }
 
             public bool Equals(CameraCaptureDescription other)
@@ -58,7 +68,8 @@ namespace Disguise.RenderStream
                     m_colorFormat == other.m_colorFormat &&
                     m_depthBufferBits == other.m_depthBufferBits &&
                     m_copyDepth == other.m_copyDepth &&
-                    m_depthCopyFormat == other.m_depthCopyFormat;
+                    m_depthCopyFormat == other.m_depthCopyFormat &&
+                    m_depthCopyMode == other.m_depthCopyMode;
             }
             
             public static bool operator ==(CameraCaptureDescription lhs, CameraCaptureDescription rhs) => lhs.Equals(rhs);
@@ -177,10 +188,13 @@ namespace Disguise.RenderStream
         {
             if (camera != m_camera)
                 return;
-            
+
             if (m_description.m_copyDepth)
-                m_depthCopy.Execute(ctx, new DepthCopy.FrameData(){ m_depthOutput = m_depthTexture });
-            
+            {
+                m_depthCopy.mode = m_description.m_depthCopyMode;
+                m_depthCopy.Execute(ctx, new DepthCopy.FrameData() { m_depthOutput = m_depthTexture });
+            }
+
             onTexturesReady.Invoke(ctx, this);
         }
     }
