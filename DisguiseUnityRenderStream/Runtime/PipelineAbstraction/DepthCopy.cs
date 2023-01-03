@@ -5,8 +5,22 @@ using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
+    /// <summary>
+    /// Copies a camera's depth into a texture.
+    /// </summary>
     class DepthCopy
     {
+#if HDRP_13_1_8_OR_NEWER
+        const string k_ShaderName = "Hidden/Disguise/RenderStream/DepthCopyHDRP";
+#elif URP_13_1_8_OR_NEWER
+        const string k_ShaderName = "Hidden/Disguise/RenderStream/DepthCopyURP";
+#endif
+        
+        /// <summary>
+        /// Defines how to transform the depth values into the 0-1 range.
+        /// The modes are equivalent to the depth sampling modes of the Shader Graph's Scene Depth Node:
+        /// https://docs.unity3d.com/Packages/com.unity.shadergraph@15.0/manual/Scene-Depth-Node.html.
+        /// </summary>
         public enum Mode
         {
             Raw,
@@ -14,8 +28,14 @@ namespace Disguise.RenderStream
             Linear01
         }
         
+        /// <summary>
+        /// Parameters for the depth copy.
+        /// </summary>
         public struct FrameData
         {
+            /// <summary>
+            /// The texture to which the depth will be written to.
+            /// </summary>
             public RenderTexture m_depthOutput;
 
             public bool IsValid => m_depthOutput != null;
@@ -120,18 +140,16 @@ namespace Disguise.RenderStream
         {
             if (!s_shaderVariantResources.IsLoaded)
             {
-#if HDRP_13_1_8_OR_NEWER
-                s_shaderVariantResources.Create("Hidden/Disguise/RenderStream/DepthCopyHDRP", k_ShaderPass);
-#elif URP_13_1_8_OR_NEWER
-                s_shaderVariantResources.Create("Hidden/Disguise/RenderStream/DepthCopyURP", k_ShaderPass);
-#endif
-                
+                s_shaderVariantResources.Create(k_ShaderName, k_ShaderPass);
                 Assert.IsTrue(s_shaderVariantResources.IsLoaded, "Couldn't load the shader resources for DepthCopy");
             }
 
             mode = Mode.Linear01;
         }
 
+        /// <summary>
+        /// Performs the copy using the SRP's currently active camera and the provided <see cref="FrameData"/>.
+        /// </summary>
         public void Execute(ScriptableRenderContext context, FrameData data)
         {
             if (!data.IsValid || !m_shaderResources.IsLoaded)
@@ -159,6 +177,8 @@ namespace Disguise.RenderStream
 
         void ValidatePipeline()
         {
+            // HDRP cameras always have a depth texture
+            
 #if URP_13_1_8_OR_NEWER
             var pipeline = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
             Assert.IsNotNull(pipeline);
