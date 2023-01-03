@@ -160,7 +160,7 @@ namespace Disguise.RenderStream
         void ValidatePipeline()
         {
 #if URP_13_1_8_OR_NEWER
-            var pipeline = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal,UniversalRenderPipelineAsset;
+            var pipeline = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
             Assert.IsNotNull(pipeline);
             if (!pipeline.supportsCameraDepthTexture)
             {
