@@ -145,6 +145,12 @@ namespace Disguise.RenderStream
             if (!IsValid)
                 return;
             
+            // Can have multiple contexts, ex:
+            // * First context renders cameras to offscreen textures
+            // * Second context composites the editor UI to the screen
+            if (RenderTexture.active != m_target)
+                return;
+            
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
             cmd.Clear();
 
