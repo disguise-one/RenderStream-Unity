@@ -5,6 +5,16 @@ using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
+    /// <summary>
+    /// Configures the <see cref="GameObject"/>'s camera for offscreen rendering and provides access to its
+    /// color and optionally its depth buffer.
+    ///
+    /// <remarks>
+    /// The camera will no longer render to the local screen.
+    /// Use the <see cref="CameraCapturePresenter"/> component to display a captured texture on the local screen. 
+    /// It will handle size and aspect ratio differences between the screen and the texture.
+    /// </remarks>
+    /// </summary>
     [RequireComponent(typeof(Camera))]
     class CameraCapture : MonoBehaviour
     {
@@ -55,12 +65,17 @@ namespace Disguise.RenderStream
 
             public bool IsValid => m_width > 0 && m_height > 0;
 
+            /// <summary>
+            /// Describes the texture to use for <see cref="Camera.targetTexture"/>.
+            /// </summary>
             public RenderTextureDescriptor GetCameraDescriptor()
             {
-
                 return new RenderTextureDescriptor(m_width, m_height, m_colorFormat, m_depthBufferBits, 1);
             }
 
+            /// <summary>
+            /// Describes the texture to use for storing the depth capture.
+            /// </summary>
             public RenderTextureDescriptor GetDepthCopyDescriptor()
             {
                 return new RenderTextureDescriptor(m_width, m_height, m_depthCopyFormat, 0, 1);
@@ -128,9 +143,25 @@ namespace Disguise.RenderStream
         [SerializeField]
         CaptureMode m_captureMode = CaptureMode.CameraRenderingEnd;
         
+        /// <summary>
+        /// The captured color texture. Its format is defined by <see cref="description"/>.
+        ///
+        /// <remarks>
+        /// To avoid unnecessary texture copies, this refers directly to <see cref="Camera.targetTexture"/>.
+        /// In the <see cref="CaptureMode.CameraRenderingEnd"/> mode, it may be written to after <see cref="onTexturesReady"/>
+        /// has been called (ex for UI overlays). If this is unwanted make a copy of the current version in the callback.
+        /// </remarks>
+        /// </summary>
         public RenderTexture cameraTexture => m_cameraTexture;
+        
+        /// <summary>
+        /// The captured depth texture. Its format is defined by <see cref="description"/>.
+        /// </summary>
         public RenderTexture depthTexture => m_depthTexture;
 
+        /// <summary>
+        /// Defines the color and depth textures. The textures are automatically disposed and created on change.
+        /// </summary>
         public CameraCaptureDescription description
         {
             get => m_description;
@@ -154,7 +185,7 @@ namespace Disguise.RenderStream
 
 #if UNITY_EDITOR
         CameraCaptureDescription m_lastDescription = CameraCaptureDescription.Default;
-        bool m_RefreshFlag;
+        bool m_RefreshFlag; // Ensures thread safety (OnValidate is on a different thread)
         
         void OnValidate()
         {
@@ -194,6 +225,7 @@ namespace Disguise.RenderStream
         {
             while (true)
             {
+                // Corresponds to the "PlayerEndOfFrame" graphics profiler tag
                 yield return new WaitForEndOfFrame();
 
                 if (isActiveAndEnabled && m_captureMode == CaptureMode.FrameEnd)
