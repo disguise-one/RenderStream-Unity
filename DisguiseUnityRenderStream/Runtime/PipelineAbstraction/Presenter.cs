@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -142,7 +142,7 @@ namespace Disguise.RenderStream
     }
     
     /// <summary>
-    /// Blits a texture to a specified target.
+    /// Blits a texture to the local screen.
     /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
     ///
     /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
@@ -157,79 +157,64 @@ namespace Disguise.RenderStream
         /// The texture to present. Can be any 2D texture.
         /// </summary>
         public RenderTexture m_source;
-        
-        /// <summary>
-        /// The target to blit to. If <see langword="null"/>, the target is the primary local screen.
-        /// </summary>
-        public RenderTexture m_target;
 
         bool IsValid => m_source != null;
 
-        bool targetIsScreen => m_target == null;
-
         Vector2 sourceSize => new Vector2(m_source.width, m_source.height);
         
-        Vector2 targetSize
-        {
-            get
-            {
-                if (targetIsScreen)
-                    return new Vector2(Screen.width, Screen.height);
-                else
-                    return new Vector2(m_target.width, m_target.height);
-            }
-        }
+        Vector2 targetSize => new Vector2(Screen.width, Screen.height);
 
         /// <summary>
-        /// Can override to setup the textures.
+        /// Can override to setup <see cref="m_source"/>.
         /// </summary>
         protected virtual void OnEnable()
         {
-            RenderPipelineManager.endContextRendering += OnEndContextRendering;
+            
         }
         
-        void OnDisable()
+        IEnumerator Start()
         {
-            RenderPipelineManager.endContextRendering -= OnEndContextRendering;
+            yield return EndFrameLoop();
         }
 
-        void OnEndContextRendering(ScriptableRenderContext ctx, List<Camera> cameras)
+        IEnumerator EndFrameLoop()
         {
-            if (!IsValid)
-                return;
-            
-            // Can have multiple contexts, ex:
-            // * First context renders cameras to offscreen textures
-            // * Second context composites the editor UI to the screen
-            if (RenderTexture.active != m_target)
-                return;
-            
+            while (true)
+            {
+                // Corresponds to the "PlayerEndOfFrame" graphics profiler tag
+                yield return new WaitForEndOfFrame();
+
+                if (!isActiveAndEnabled || !IsValid)
+                    continue;
+
+                Present();
+            }
+        }
+
+        void Present()
+        {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
             cmd.Clear();
 
-            Present(cmd);
+            IssueCommands(cmd);
             
-            ctx.ExecuteCommandBuffer(cmd);
+            Graphics.ExecuteCommandBuffer(cmd);
             
             cmd.Clear();
             CommandBufferPool.Release(cmd);
-            
-            ctx.Submit();
         }
 
-        void Present(CommandBuffer cmd)
+        void IssueCommands(CommandBuffer cmd)
         {
-            CoreUtils.SetRenderTarget(cmd, m_target);
+            RenderTexture screen = default;
+            CoreUtils.SetRenderTarget(cmd, screen);
             
             var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
             var dstScaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
 
             // Flip Y for screen
-            if (targetIsScreen)
-            {
-                dstScaleBias.y = -dstScaleBias.y;
-                dstScaleBias.w = 1f - dstScaleBias.w;
-            }
+            dstScaleBias.y = -dstScaleBias.y;
+            dstScaleBias.w = 1f - dstScaleBias.w;
             
             Blitter.BlitQuad(cmd, m_source, srcScaleBias, dstScaleBias, 0, true);
         }

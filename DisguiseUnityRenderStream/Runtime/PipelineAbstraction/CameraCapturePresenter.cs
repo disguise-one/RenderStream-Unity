@@ -5,7 +5,7 @@ using UnityEngine.Assertions;
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// Blits this <see cref="GameObject"/>'s <see cref="CameraCapture"/> to a specified target.
+    /// Blits this <see cref="GameObject"/>'s <see cref="CameraCapture"/> to the local screen.
     /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
     /// </summary>
     class CameraCapturePresenter : Presenter
