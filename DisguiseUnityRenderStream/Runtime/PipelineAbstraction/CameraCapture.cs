@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -7,6 +8,29 @@ namespace Disguise.RenderStream
     [RequireComponent(typeof(Camera))]
     class CameraCapture : MonoBehaviour
     {
+        public enum CaptureMode
+        {
+            /// <summary>
+            /// Triggered after a camera finished all its SRPs passes.
+            /// This corresponds to <see cref="RenderPipelineManager.endCameraRendering"/>.
+            /// </summary>
+            CameraRenderingEnd,
+            
+            /// <summary>
+            /// <para>
+            /// Triggered after Unity finishes all of its rendering (including UI overlays).
+            /// This corresponds to the "PlayerEndOfFrame" graphics profiler tag.
+            /// </para>
+            /// 
+            /// <para>
+            /// If the camera doesn't display any UI for example, it could be wasteful to use
+            /// this mode instead of <see cref="CameraRenderingEnd"/> in a multi-camera setup
+            /// (because it will wait for all cameras to render).
+            /// </para>
+            /// </summary>
+            FrameEnd,
+        }
+        
         [Serializable]
         public struct CameraCaptureDescription : IEquatable<CameraCaptureDescription>
         {
@@ -77,7 +101,32 @@ namespace Disguise.RenderStream
             public static bool operator !=(CameraCaptureDescription lhs, CameraCaptureDescription rhs) => !(lhs == rhs);
         }
 
+        /// <summary>
+        /// Called once textures have been captured and are ready to be consumed.
+        ///
+        /// <remarks>
+        /// <see cref="ScriptableRenderContext"/> is <see langword="null"/> when <see cref="captureMode"/>
+        /// is set to <see cref="CaptureMode.FrameEnd"/>.
+        /// </remarks>
+        /// </summary>
         public event Action<ScriptableRenderContext, CameraCapture> onTexturesReady = delegate {};
+
+        /// <summary>
+        /// Determines when to capture the textures.
+        /// 
+        /// <remarks>
+        /// The depth texture is always captured using the <see cref="CaptureMode.CameraRenderingEnd"/>
+        /// mode because it's unaffected by later passes (ex UI overlays).
+        /// </remarks>
+        /// </summary>
+        public CaptureMode captureMode
+        {
+            get => m_captureMode;
+            set => m_captureMode = value;
+        }
+        
+        [SerializeField]
+        CaptureMode m_captureMode = CaptureMode.CameraRenderingEnd;
         
         public RenderTexture cameraTexture => m_cameraTexture;
         public RenderTexture depthTexture => m_depthTexture;
@@ -134,6 +183,22 @@ namespace Disguise.RenderStream
             
             if (m_description.IsValid)
                 CreateResources(m_description);
+        }
+
+        IEnumerator Start()
+        {
+            yield return EndFrameLoop();
+        }
+
+        IEnumerator EndFrameLoop()
+        {
+            while (true)
+            {
+                yield return new WaitForEndOfFrame();
+
+                if (isActiveAndEnabled && m_captureMode == CaptureMode.FrameEnd)
+                    onTexturesReady.Invoke(default, this);
+            }
         }
 
         void OnEnable()
@@ -195,7 +260,8 @@ namespace Disguise.RenderStream
                 m_depthCopy.Execute(ctx, new DepthCopy.FrameData() { m_depthOutput = m_depthTexture });
             }
 
-            onTexturesReady.Invoke(ctx, this);
+            if (m_captureMode == CaptureMode.CameraRenderingEnd)
+                onTexturesReady.Invoke(ctx, this);
         }
     }
 }
