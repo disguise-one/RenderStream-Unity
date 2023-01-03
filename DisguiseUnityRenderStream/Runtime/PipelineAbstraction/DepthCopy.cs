@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 namespace Disguise.RenderStream
 {
@@ -161,11 +160,11 @@ namespace Disguise.RenderStream
         void ValidatePipeline()
         {
 #if URP_13_1_8_OR_NEWER
-            var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            var pipeline = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal,UniversalRenderPipelineAsset;
             Assert.IsNotNull(pipeline);
             if (!pipeline.supportsCameraDepthTexture)
             {
-                Debug.LogError($"Can't copy camera depth because the Depth Texture option isn't enabled in the current {nameof(UniversalRenderPipelineAsset)}");
+                Debug.LogError($"Can't copy camera depth because the Depth Texture option isn't enabled in the current {nameof(UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset)}");
             }
 #endif
         }
