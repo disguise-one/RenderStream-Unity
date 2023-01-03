@@ -5,18 +5,54 @@ using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
+    /// <summary>
+    /// Strategy calculations for the <see cref="Blitter"/> API.
+    /// </summary>
     static class PresenterStrategy
     {
+        /// <summary>
+        /// A strategy to handle the size and aspect ratio differences between two surfaces.
+        /// </summary>
         public enum Strategy
         {
+            /// <summary>
+            /// Stretches the source to have the same size as the destination.
+            /// The aspect ratio is lost.
+            /// </summary>
             Fill,
+            
+            /// <summary>
+            /// The source isn't scaled at all but it's centered within the destination.
+            /// </summary>
             NoResize,
+            
+            /// <summary>
+            /// The source is scaled while conserving the aspect ratio so that the width matches the destination.
+            /// </summary>
             FitWidth,
+            
+            /// <summary>
+            /// The source is scaled while conserving the aspect ratio so that the height matches the destination.
+            /// </summary>
             FitHeight,
+            
+            /// <summary>
+            /// The source is scaled while conserving the aspect ratio to fill the destination.
+            /// It can't overflow but can leave black bars on the sides.
+            /// </summary>
             Letterbox,
+            
+            /// <summary>
+            /// The source is scaled while conserving the aspect ratio to fill the destination.
+            /// It can overflow but won't leave black bars on the sides.
+            /// </summary>
             FillAspectRatio
         }
 
+        /// <summary>
+        /// Computes a strategy for the <see cref="Blitter"/> API.
+        /// </summary>
+        /// <returns>A scale + bias vector</returns>
         public static Vector4 DoStrategy(Strategy strategy, Vector2 srcSize, Vector2 dstSize)
         {
             switch (strategy)
@@ -105,12 +141,26 @@ namespace Disguise.RenderStream
         }
     }
     
+    /// <summary>
+    /// Blits a texture to a specified target.
+    /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
+    ///
+    /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
+    /// </summary>
     class Presenter : MonoBehaviour
     {
         const string k_profilerTag = "Disguise Presenter";
 
         public PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.FillAspectRatio;
+        
+        /// <summary>
+        /// The texture to present. Can be any 2D texture.
+        /// </summary>
         public RenderTexture m_source;
+        
+        /// <summary>
+        /// The target to blit to. If <see langword="null"/>, the target is the primary local screen.
+        /// </summary>
         public RenderTexture m_target;
 
         bool IsValid => m_source != null;
@@ -130,6 +180,9 @@ namespace Disguise.RenderStream
             }
         }
 
+        /// <summary>
+        /// Can override to setup the textures.
+        /// </summary>
         protected virtual void OnEnable()
         {
             RenderPipelineManager.endContextRendering += OnEndContextRendering;
@@ -171,6 +224,7 @@ namespace Disguise.RenderStream
             var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
             var dstScaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
 
+            // Flip Y for screen
             if (targetIsScreen)
             {
                 dstScaleBias.y = -dstScaleBias.y;

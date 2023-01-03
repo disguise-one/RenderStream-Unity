@@ -28,6 +28,10 @@ float Frag(Varyings input) : SV_Target
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
     const float2 uv = input.texcoord.xy;
+
+    // Up to this point this is minimal screen-space blit boilerplate
+
+    // Detects depth mode based on the shader keywords
     return SceneDepth_Auto(uv);
 }
 
