@@ -5,8 +5,15 @@ using UnityEngine.Assertions;
 namespace Disguise.RenderStream
 {
     /// <summary>
+    /// <para>
     /// Blits this <see cref="GameObject"/>'s <see cref="CameraCapture"/> to the local screen.
     /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="PresenterInput"/> is responsible for adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/>
+    /// mouse coordinates to account for the blit.
+    /// </para>
     /// </summary>
     class CameraCapturePresenter : Presenter
     {
@@ -28,8 +35,10 @@ namespace Disguise.RenderStream
             m_cameraCapture = GetComponent<CameraCapture>();
         }
 
-        void Update()
+        protected override void Update()
         {
+            base.Update();
+            
             switch (m_mode)
             {
                 case Mode.Color:

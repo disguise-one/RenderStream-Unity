@@ -42,6 +42,7 @@ namespace Disguise.RenderStream
         }
         
         // TODO: use ShaderVariantCollection + preload in GraphicsSettings
+        // Once that's done DepthCopy can be made Serializable
         struct ShaderVariantResources : IDisposable
         {
             public ShaderResources m_Raw;

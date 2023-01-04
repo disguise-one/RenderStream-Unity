@@ -142,14 +142,22 @@ namespace Disguise.RenderStream
     }
     
     /// <summary>
+    /// <para>
     /// Blits a texture to the local screen.
     /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
+    /// </para>
+    /// 
+    /// <para>
+    /// <see cref="PresenterInput"/> is responsible for adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/>
+    /// mouse coordinates to account for the blit.
+    /// </para>
     ///
     /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
     /// </summary>
     class Presenter : MonoBehaviour
     {
         const string k_profilerTag = "Disguise Presenter";
+        const string k_profilerClearTag = "Disguise Presenter Clear";
 
         public PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.FillAspectRatio;
         
@@ -157,24 +165,33 @@ namespace Disguise.RenderStream
         /// The texture to present. Can be any 2D texture.
         /// </summary>
         public RenderTexture m_source;
-
-        bool IsValid => m_source != null;
-
-        Vector2 sourceSize => new Vector2(m_source.width, m_source.height);
         
-        Vector2 targetSize => new Vector2(Screen.width, Screen.height);
+        /// <summary>
+        /// When Unity has no onscreen cameras the screen might never be cleared.
+        /// </summary>
+        public bool m_clearScreen;
+
+        public bool IsValid => m_source != null;
+
+        public Vector2 sourceSize => new Vector2(m_source.width, m_source.height);
+        
+        public Vector2 targetSize => new Vector2(Screen.width, Screen.height);
+
+        IEnumerator m_EndFrameLoop;
 
         /// <summary>
         /// Can override to setup <see cref="m_source"/>.
         /// </summary>
         protected virtual void OnEnable()
         {
-            
+            m_EndFrameLoop = EndFrameLoop();
+            StartCoroutine(m_EndFrameLoop);
         }
         
-        IEnumerator Start()
+        protected virtual void OnDestroy()
         {
-            yield return EndFrameLoop();
+            if (m_EndFrameLoop != null)
+                StopCoroutine(m_EndFrameLoop);
         }
 
         IEnumerator EndFrameLoop()
@@ -189,6 +206,30 @@ namespace Disguise.RenderStream
 
                 Present();
             }
+        }
+
+        protected virtual void Update()
+        {
+            if (m_clearScreen)
+                ClearScreen();
+        }
+        
+        /// <summary>
+        /// Get the coordinates that would be passed to the <see cref="Blitter"/> API.
+        /// </summary>
+        /// <param name="flipY"></param>
+        /// <returns>A scale + bias vector</returns>
+        public Vector4 GetScaleBias(bool flipY)
+        {
+            var scaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
+
+            if (flipY)
+            {
+                scaleBias.y = -scaleBias.y;
+                scaleBias.w = 1f - scaleBias.w;
+            }
+
+            return scaleBias;
         }
 
         void Present()
@@ -210,13 +251,24 @@ namespace Disguise.RenderStream
             CoreUtils.SetRenderTarget(cmd, screen);
             
             var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
-            var dstScaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
-
-            // Flip Y for screen
-            dstScaleBias.y = -dstScaleBias.y;
-            dstScaleBias.w = 1f - dstScaleBias.w;
+            var dstScaleBias = GetScaleBias(true); // Flip Y for screen
             
             Blitter.BlitQuad(cmd, m_source, srcScaleBias, dstScaleBias, 0, true);
+        }
+        
+        void ClearScreen()
+        {
+            CommandBuffer cmd = CommandBufferPool.Get(k_profilerClearTag);
+            cmd.Clear();
+
+            RenderTexture screen = default;
+            CoreUtils.SetRenderTarget(cmd, screen);
+            cmd.ClearRenderTarget(true, true, Color.black);
+            
+            Graphics.ExecuteCommandBuffer(cmd);
+            
+            cmd.Clear();
+            CommandBufferPool.Release(cmd);
         }
     }
 }

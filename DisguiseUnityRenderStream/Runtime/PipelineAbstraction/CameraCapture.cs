@@ -49,6 +49,7 @@ namespace Disguise.RenderStream
                 m_width = 0,
                 m_height = 0,
                 m_colorFormat = RenderTextureFormat.ARGB32,
+                m_msaaSamples = 1,
                 m_depthBufferBits = 24,
                 m_copyDepth = false,
                 m_depthCopyFormat = RenderTextureFormat.RFloat,
@@ -58,6 +59,7 @@ namespace Disguise.RenderStream
             public int m_width;
             public int m_height;
             public RenderTextureFormat m_colorFormat;
+            public int m_msaaSamples;
             public int m_depthBufferBits;
             public bool m_copyDepth;
             public RenderTextureFormat m_depthCopyFormat;
@@ -65,12 +67,16 @@ namespace Disguise.RenderStream
 
             public bool IsValid => m_width > 0 && m_height > 0;
 
+            public bool CameraTextureIsMSAA => m_msaaSamples > 1;
+
             /// <summary>
             /// Describes the texture to use for <see cref="Camera.targetTexture"/>.
             /// </summary>
             public RenderTextureDescriptor GetCameraDescriptor()
             {
-                return new RenderTextureDescriptor(m_width, m_height, m_colorFormat, m_depthBufferBits, 1);
+                var descriptor = new RenderTextureDescriptor(m_width, m_height, m_colorFormat, m_depthBufferBits, 1);
+                descriptor.msaaSamples = m_msaaSamples;
+                return descriptor;
             }
 
             /// <summary>
@@ -92,6 +98,7 @@ namespace Disguise.RenderStream
                     m_width,
                     m_height,
                     (int)m_colorFormat,
+                    m_msaaSamples,
                     m_depthBufferBits,
                     m_copyDepth,
                     (int)m_depthCopyFormat,
@@ -105,6 +112,7 @@ namespace Disguise.RenderStream
                     m_width == other.m_width &&
                     m_height == other.m_height &&
                     m_colorFormat == other.m_colorFormat &&
+                    m_msaaSamples == other.m_msaaSamples &&
                     m_depthBufferBits == other.m_depthBufferBits &&
                     m_copyDepth == other.m_copyDepth &&
                     m_depthCopyFormat == other.m_depthCopyFormat &&
@@ -144,7 +152,15 @@ namespace Disguise.RenderStream
         CaptureMode m_captureMode = CaptureMode.CameraRenderingEnd;
         
         /// <summary>
+        /// <para>
         /// The captured color texture. Its format is defined by <see cref="description"/>.
+        /// </para>
+        ///
+        /// <para>
+        /// Note: while the texture may be configured for MSAA, Unity will always use an implicitly resolved version
+        /// of the texture for APIs such <see cref="CommandBuffer.CopyTexture(RenderTargetIdentifier, RenderTargetIdentifier)"/>
+        /// and see <see cref="Texture.GetNativeTexturePtr"/>.
+        /// </para>
         ///
         /// <remarks>
         /// To avoid unnecessary texture copies, this refers directly to <see cref="Camera.targetTexture"/>.
@@ -182,6 +198,11 @@ namespace Disguise.RenderStream
         Camera m_camera;
         RenderTexture m_cameraTexture;
         RenderTexture m_depthTexture;
+        IEnumerator m_EndFrameLoop;
+        
+#if DEBUG
+        bool m_HasSetSecondNames;        
+#endif
 
 #if UNITY_EDITOR
         CameraCaptureDescription m_lastDescription = CameraCaptureDescription.Default;
@@ -216,11 +237,6 @@ namespace Disguise.RenderStream
                 CreateResources(m_description);
         }
 
-        IEnumerator Start()
-        {
-            yield return EndFrameLoop();
-        }
-
         IEnumerator EndFrameLoop()
         {
             while (true)
@@ -235,11 +251,20 @@ namespace Disguise.RenderStream
 
         void OnEnable()
         {
+            m_EndFrameLoop = EndFrameLoop();
+            StartCoroutine(m_EndFrameLoop);
+            
             RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+
+            if (m_depthCopy == null)
+                m_depthCopy = new DepthCopy(); // Can be lost after domain reload 
         }
 
         void OnDisable()
         {
+            if (m_EndFrameLoop != null)
+                StopCoroutine(m_EndFrameLoop);
+            
             RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
         }
 
@@ -271,6 +296,13 @@ namespace Disguise.RenderStream
                 var depthCopyDescriptor = desc.GetDepthCopyDescriptor();
                 m_depthTexture = new RenderTexture(depthCopyDescriptor);
             }
+            
+#if DEBUG
+            m_cameraTexture.name = $"CameraCapture Camera Texture Initial {m_cameraTexture.width}x{m_cameraTexture.height}";
+            if (m_depthTexture != null)
+                m_depthTexture.name = $"CameraCapture Depth Copy Texture Initial {m_depthTexture.width}x{m_depthTexture.height}";
+            m_HasSetSecondNames = false;
+#endif
         }
 
         void DisposeResources()
@@ -294,6 +326,18 @@ namespace Disguise.RenderStream
 
             if (m_captureMode == CaptureMode.CameraRenderingEnd)
                 onTexturesReady.Invoke(ctx, this);
+
+#if DEBUG
+            // A RenderTexture holds MSAA and resolved versions of its textures.
+            // This second naming step will name the resolved textures which Unity creates in a deferred manner.
+            if (!m_HasSetSecondNames)
+            {
+                m_cameraTexture.name = $"CameraCapture Camera Texture {m_cameraTexture.width}x{m_cameraTexture.height}";
+                if (m_depthTexture != null)
+                    m_depthTexture.name = $"CameraCapture Depth Copy Texture {m_depthTexture.width}x{m_depthTexture.height}";
+                m_HasSetSecondNames = true;
+            }
+#endif
         }
     }
 }
