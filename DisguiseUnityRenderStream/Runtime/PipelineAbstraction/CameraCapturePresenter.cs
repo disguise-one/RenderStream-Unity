@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.Assertions;
+using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
@@ -17,14 +18,44 @@ namespace Disguise.RenderStream
     /// </summary>
     class CameraCapturePresenter : Presenter
     {
+        /// <summary>
+        /// Describes which texture to present.
+        /// </summary>
         public enum Mode
         {
             Color,
             Depth
         }
+        
+        /// <summary>
+        /// Describes when to blit to screen.
+        /// </summary>
+        public enum PresentMode
+        {
+            /// <summary>
+            /// Triggered after camera capture finishes.
+            /// This is defined by the <see cref="P:CameraCapture.captureMode"/> of the sibling component.
+            /// </summary>
+            CameraCapture,
+            
+            /// <summary>
+            /// <para>
+            /// Triggered after Unity finishes all of its rendering (including UI overlays).
+            /// This corresponds to the "PlayerEndOfFrame" graphics profiler tag.
+            /// </para>
+            ///
+            /// <remarks>
+            /// The blit will overwrite any Overlay UIs if there are any in the scene.
+            /// </remarks>
+            /// </summary>
+            FrameEnd
+        }
 
         [SerializeField]
         Mode m_mode;
+        
+        [SerializeField]
+        PresentMode m_presentMode;
         
         CameraCapture m_cameraCapture;
         
@@ -33,6 +64,15 @@ namespace Disguise.RenderStream
             base.OnEnable();
 
             m_cameraCapture = GetComponent<CameraCapture>();
+            m_cameraCapture.onTexturesReady += OnTexturesReady;
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            
+            if (m_cameraCapture != null)
+                m_cameraCapture.onTexturesReady -= OnTexturesReady;
         }
 
         protected override void Update()
@@ -53,6 +93,18 @@ namespace Disguise.RenderStream
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+        protected override void Present()
+        {
+            if (m_presentMode == PresentMode.FrameEnd)
+                base.Present();
+        }
+
+        void OnTexturesReady(ScriptableRenderContext ctx, CameraCapture capture)
+        {
+            if (m_presentMode == PresentMode.CameraCapture)
+                base.Present();
         }
     }
 }

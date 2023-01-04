@@ -188,7 +188,7 @@ namespace Disguise.RenderStream
             StartCoroutine(m_EndFrameLoop);
         }
         
-        protected virtual void OnDestroy()
+        protected virtual void OnDisable()
         {
             if (m_EndFrameLoop != null)
                 StopCoroutine(m_EndFrameLoop);
@@ -232,7 +232,7 @@ namespace Disguise.RenderStream
             return scaleBias;
         }
 
-        void Present()
+        protected virtual void Present()
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
             cmd.Clear();
