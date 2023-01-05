@@ -5,9 +5,9 @@ namespace Disguise.RenderStream
 {
     /// <summary>
     /// Attaches to this <see cref="GameObject"/>'s <see cref="UnityEngine.EventSystems.BaseInputModule"/>
-    /// to convert the mouse coordinates for the specified <see cref="Presenter"/>.
+    /// to convert the mouse coordinates to the specified <see cref="Presenter"/>.
     /// </summary>
-    class PresenterInput : BaseInput
+    class PresenterInputUGUI : BaseInput
     {
         BaseInputModule m_InputModule;
 
@@ -16,9 +16,6 @@ namespace Disguise.RenderStream
         
         [SerializeField]
         Vector2 m_Offset = Vector2.zero;
-        
-        [SerializeField]
-        Vector2 m_SecondOffset = Vector2.zero;
         
         [SerializeField]
         Presenter m_Presenter;
@@ -33,12 +30,6 @@ namespace Disguise.RenderStream
         {
             get => m_Offset;
             set => m_Offset = value;
-        }
-        
-        public Vector2 SecondOffset
-        {
-            get => m_SecondOffset;
-            set => m_SecondOffset = value;
         }
         
         public Presenter Presenter
@@ -69,7 +60,6 @@ namespace Disguise.RenderStream
                 
                 Offset = new Vector2(uiPosOnScreen.x, uiPosOnScreen.y);
                 Scale = m_Presenter.sourceSize / uiSizeOnScreen;
-                SecondOffset = new Vector2(0f, m_Presenter.sourceSize.y - m_Presenter.targetSize.y);
             }
         }
 
@@ -84,8 +74,6 @@ namespace Disguise.RenderStream
                 presenterPosition.y -= Offset.y;
                 presenterPosition.x *= Scale.x;
                 presenterPosition.y *= Scale.y;
-                presenterPosition.x -= SecondOffset.x;
-                presenterPosition.y -= SecondOffset.y;
                 
                 return presenterPosition;
             }

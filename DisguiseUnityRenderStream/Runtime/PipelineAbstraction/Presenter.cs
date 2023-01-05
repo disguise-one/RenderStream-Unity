@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -177,35 +178,17 @@ namespace Disguise.RenderStream
         
         public Vector2 targetSize => new Vector2(Screen.width, Screen.height);
 
-        IEnumerator m_EndFrameLoop;
-
         /// <summary>
         /// Can override to setup <see cref="m_source"/>.
         /// </summary>
         protected virtual void OnEnable()
         {
-            m_EndFrameLoop = EndFrameLoop();
-            StartCoroutine(m_EndFrameLoop);
+            RenderPipelineManager.endContextRendering += OnEndContextRendering;
         }
         
         protected virtual void OnDisable()
         {
-            if (m_EndFrameLoop != null)
-                StopCoroutine(m_EndFrameLoop);
-        }
-
-        IEnumerator EndFrameLoop()
-        {
-            while (true)
-            {
-                // Corresponds to the "PlayerEndOfFrame" graphics profiler tag
-                yield return new WaitForEndOfFrame();
-
-                if (!isActiveAndEnabled || !IsValid)
-                    continue;
-
-                Present();
-            }
+            RenderPipelineManager.endContextRendering -= OnEndContextRendering;
         }
 
         protected virtual void Update()
@@ -232,20 +215,15 @@ namespace Disguise.RenderStream
             return scaleBias;
         }
 
-        protected virtual void Present(ScriptableRenderContext? context = null)
+        protected virtual void Present(ScriptableRenderContext context)
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
             cmd.Clear();
 
             IssueCommands(cmd);
 
-            if (context is { } ctx)
-            {
-                ctx.ExecuteCommandBuffer(cmd);
-                ctx.Submit();
-            }
-            else
-                Graphics.ExecuteCommandBuffer(cmd);
+            context.ExecuteCommandBuffer(cmd);
+            context.Submit();
             
             cmd.Clear();
             CommandBufferPool.Release(cmd);
@@ -275,6 +253,11 @@ namespace Disguise.RenderStream
             
             cmd.Clear();
             CommandBufferPool.Release(cmd);
+        }
+
+        void OnEndContextRendering(ScriptableRenderContext context, List<Camera> _)
+        {
+            Present(context);
         }
     }
 }
