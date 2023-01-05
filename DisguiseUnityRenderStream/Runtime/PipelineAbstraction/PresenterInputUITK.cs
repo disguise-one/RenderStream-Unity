@@ -1,15 +1,16 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UIElements;
 
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// Attaches to this <see cref="GameObject"/>'s <see cref="UnityEngine.EventSystems.BaseInputModule"/>
-    /// to convert the mouse coordinates to the specified <see cref="Presenter"/>.
+    /// Attaches to this <see cref="GameObject"/>'s <see cref="UnityEngine.UIElements.UIDocument"/>
+    /// to convert the input coordinates to the specified <see cref="Presenter"/>.
     /// </summary>
-    class PresenterInputUGUI : BaseInput
+    class PresenterInputUITK : BaseInput
     {
-        BaseInputModule m_InputModule;
+        UIDocument m_Document;
 
         [SerializeField]
         Vector2 m_Scale = Vector2.one;
@@ -40,14 +41,14 @@ namespace Disguise.RenderStream
         
         protected override void OnEnable()
         {
-            m_InputModule = GetComponent<BaseInputModule>();
-            m_InputModule.inputOverride = this;
+            m_Document = GetComponent<UIDocument>();
+            m_Document.panelSettings.SetScreenToPanelSpaceFunction(ScreenToPanelSpaceFunction);
         }
 
         protected override void OnDisable()
         {
-            if (m_InputModule != null && m_InputModule.inputOverride == this)
-                m_InputModule.inputOverride = null;
+            if (m_Document != null)
+                m_Document.panelSettings.SetScreenToPanelSpaceFunction(null);
         }
 
         void LateUpdate()
@@ -63,20 +64,16 @@ namespace Disguise.RenderStream
             }
         }
 
-        public override Vector2 mousePosition
+        Vector2 ScreenToPanelSpaceFunction(Vector2 truePosition)
         {
-            get
-            {
-                var truePosition = Input.mousePosition;
-                var presenterPosition = truePosition;
+            var presenterPosition = truePosition;
                 
-                presenterPosition.x -= Offset.x;
-                presenterPosition.y -= Offset.y;
-                presenterPosition.x *= Scale.x;
-                presenterPosition.y *= Scale.y;
+            presenterPosition.x -= Offset.x;
+            presenterPosition.y -= Offset.y;
+            presenterPosition.x *= Scale.x;
+            presenterPosition.y *= Scale.y;
                 
-                return presenterPosition;
-            }
+            return presenterPosition;
         }
     }
 }
