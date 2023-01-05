@@ -95,16 +95,16 @@ namespace Disguise.RenderStream
             }
         }
 
-        protected override void Present()
+        protected override void Present(ScriptableRenderContext? ctx = null)
         {
             if (m_presentMode == PresentMode.FrameEnd)
-                base.Present();
+                base.Present(ctx);
         }
 
-        void OnTexturesReady(ScriptableRenderContext ctx, CameraCapture capture)
+        void OnTexturesReady(ScriptableRenderContext? ctx, CameraCapture capture)
         {
             if (m_presentMode == PresentMode.CameraCapture)
-                base.Present();
+                base.Present(ctx);
         }
     }
 }

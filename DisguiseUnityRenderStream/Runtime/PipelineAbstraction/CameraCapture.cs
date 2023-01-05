@@ -132,7 +132,7 @@ namespace Disguise.RenderStream
         /// is set to <see cref="CaptureMode.FrameEnd"/>.
         /// </remarks>
         /// </summary>
-        public event Action<ScriptableRenderContext, CameraCapture> onTexturesReady = delegate {};
+        public event Action<ScriptableRenderContext?, CameraCapture> onTexturesReady = delegate {};
 
         /// <summary>
         /// Determines when to capture the textures.
@@ -245,7 +245,7 @@ namespace Disguise.RenderStream
                 yield return new WaitForEndOfFrame();
 
                 if (isActiveAndEnabled && m_captureMode == CaptureMode.FrameEnd)
-                    onTexturesReady.Invoke(default, this);
+                    onTexturesReady.Invoke(null, this);
             }
         }
 

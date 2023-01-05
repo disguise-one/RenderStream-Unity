@@ -232,14 +232,20 @@ namespace Disguise.RenderStream
             return scaleBias;
         }
 
-        protected virtual void Present()
+        protected virtual void Present(ScriptableRenderContext? context = null)
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
             cmd.Clear();
 
             IssueCommands(cmd);
-            
-            Graphics.ExecuteCommandBuffer(cmd);
+
+            if (context is { } ctx)
+            {
+                ctx.ExecuteCommandBuffer(cmd);
+                ctx.Submit();
+            }
+            else
+                Graphics.ExecuteCommandBuffer(cmd);
             
             cmd.Clear();
             CommandBufferPool.Release(cmd);
