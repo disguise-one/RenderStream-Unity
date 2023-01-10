@@ -90,7 +90,7 @@ namespace Disguise.RenderStream
         
         static Vector4 FitWidth(Vector2 srcSize, Vector2 dstSize)
         {
-            var yScale = AspectRatio(srcSize) * AspectRatio(dstSize);
+            var yScale = InverseAspectRatio(srcSize) * AspectRatio(dstSize);
             var yOffset = CenterUVOffset(yScale);
             
             return new Vector4(1f, yScale, 0f, yOffset);
@@ -98,7 +98,7 @@ namespace Disguise.RenderStream
         
         static Vector4 FitHeight(Vector2 srcSize, Vector2 dstSize)
         {
-            var xScale = AspectRatio(srcSize) / AspectRatio(dstSize);
+            var xScale = AspectRatio(srcSize) * InverseAspectRatio(dstSize);
             var xOffset = CenterUVOffset(xScale);
             
             return new Vector4(xScale, 1f, xOffset, 0f);
@@ -129,6 +129,11 @@ namespace Disguise.RenderStream
         static float AspectRatio(Vector2 size)
         {
             return size.x / size.y;
+        }
+        
+        static float InverseAspectRatio(Vector2 size)
+        {
+            return size.y / size.x;
         }
 
         static float CenterUVOffset(float scale)
