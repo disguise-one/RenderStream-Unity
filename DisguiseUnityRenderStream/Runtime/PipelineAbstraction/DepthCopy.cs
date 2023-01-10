@@ -28,19 +28,6 @@ namespace Disguise.RenderStream
             Linear01
         }
         
-        /// <summary>
-        /// Parameters for the depth copy.
-        /// </summary>
-        public struct FrameData
-        {
-            /// <summary>
-            /// The texture to which the depth will be written to.
-            /// </summary>
-            public RenderTexture m_depthOutput;
-
-            public bool IsValid => m_depthOutput != null;
-        }
-        
         // TODO: use ShaderVariantCollection + preload in GraphicsSettings
         // Once that's done DepthCopy can be made Serializable
         struct ShaderVariantResources : IDisposable
@@ -112,68 +99,57 @@ namespace Disguise.RenderStream
             {
                 m_mode = value;
                 
-                switch (m_mode)
-                {
-                    case Mode.Raw:
-                        m_shaderResources = s_shaderVariantResources.m_Raw;
-                        break;
-                    case Mode.Eye:
-                        m_shaderResources = s_shaderVariantResources.m_Eye;
-                        break;
-                    case Mode.Linear01:
-                        m_shaderResources = s_shaderVariantResources.m_linear01;
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
+                m_shaderResources = m_mode switch {
+                    Mode.Raw => s_shaderVariantResources.m_Raw,
+                    Mode.Eye => s_shaderVariantResources.m_Eye,
+                    Mode.Linear01 => s_shaderVariantResources.m_linear01,
+                    _ => throw new ArgumentOutOfRangeException()
+                };
             }
         }
         
         const string k_profilerTag = "Disguise Depth Copy";
         const string k_ShaderPass = "Depth Copy";
 
-        static ShaderVariantResources s_shaderVariantResources;
+        static readonly ShaderVariantResources s_shaderVariantResources;
 
         Mode m_mode = Mode.Linear01;
         ShaderResources m_shaderResources;
+        
+        static DepthCopy()
+        {
+            s_shaderVariantResources.Create(k_ShaderName, k_ShaderPass);
+            Assert.IsTrue(s_shaderVariantResources.IsLoaded, "Couldn't load the shader resources for DepthCopy");
+        }
 
         public DepthCopy()
         {
-            if (!s_shaderVariantResources.IsLoaded)
-            {
-                s_shaderVariantResources.Create(k_ShaderName, k_ShaderPass);
-                Assert.IsTrue(s_shaderVariantResources.IsLoaded, "Couldn't load the shader resources for DepthCopy");
-            }
-
             mode = Mode.Linear01;
         }
 
         /// <summary>
         /// Performs the copy using the SRP's currently active camera and the provided <see cref="FrameData"/>.
         /// </summary>
-        public void Execute(ScriptableRenderContext context, FrameData data)
+        /// <param name="depthOutput">The texture to which the depth will be written to.</param>
+        public void Execute(ScriptableRenderContext context, RenderTexture depthOutput)
         {
-            if (!data.IsValid || !m_shaderResources.IsLoaded)
-                return;
+            Assert.IsNotNull(depthOutput);
+            Assert.IsTrue(m_shaderResources.IsLoaded);
 
             ValidatePipeline();
             
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
-            cmd.Clear();
-
-            IssueCommands(cmd, data);
+            IssueCommands(cmd, depthOutput);
             
             context.ExecuteCommandBuffer(cmd);
-            
-            cmd.Clear();
-            CommandBufferPool.Release(cmd);
-            
             context.Submit();
+            
+            CommandBufferPool.Release(cmd);
         }
         
-        void IssueCommands(CommandBuffer cmd, FrameData data)
+        void IssueCommands(CommandBuffer cmd, RenderTexture depthOutput)
         {
-            CoreUtils.DrawFullScreen(cmd, m_shaderResources.m_material, data.m_depthOutput, shaderPassId: m_shaderResources.m_pass);
+            CoreUtils.DrawFullScreen(cmd, m_shaderResources.m_material, depthOutput, shaderPassId: m_shaderResources.m_pass);
         }
 
         void ValidatePipeline()

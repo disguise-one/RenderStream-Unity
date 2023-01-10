@@ -8,7 +8,7 @@ namespace Disguise.RenderStream
     /// Attaches to this <see cref="GameObject"/>'s <see cref="UnityEngine.UIElements.UIDocument"/>
     /// to convert the input coordinates to the specified <see cref="Presenter"/>.
     /// </summary>
-    class PresenterInputUITK : BaseInput
+    class UITKInputForPresenter : BaseInput
     {
         UIDocument m_Document;
 

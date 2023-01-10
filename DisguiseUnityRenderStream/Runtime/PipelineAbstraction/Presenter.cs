@@ -218,14 +218,11 @@ namespace Disguise.RenderStream
         protected virtual void Present(ScriptableRenderContext context)
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
-            cmd.Clear();
-
             IssueCommands(cmd);
 
             context.ExecuteCommandBuffer(cmd);
             context.Submit();
             
-            cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
 
@@ -243,7 +240,6 @@ namespace Disguise.RenderStream
         void ClearScreen()
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerClearTag);
-            cmd.Clear();
 
             RenderTexture screen = default;
             CoreUtils.SetRenderTarget(cmd, screen);
@@ -251,13 +247,13 @@ namespace Disguise.RenderStream
             
             Graphics.ExecuteCommandBuffer(cmd);
             
-            cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
 
         void OnEndContextRendering(ScriptableRenderContext context, List<Camera> _)
         {
-            Present(context);
+            if (IsValid)
+                Present(context);
         }
     }
 }

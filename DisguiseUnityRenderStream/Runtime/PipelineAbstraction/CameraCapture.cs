@@ -100,10 +100,32 @@ namespace Disguise.RenderStream
             public static bool operator !=(CameraCaptureDescription lhs, CameraCaptureDescription rhs) => !(lhs == rhs);
         }
 
+        public struct Capture
+        {
+            RenderTexture m_cameraTexture;
+            RenderTexture m_depthTexture;
+
+            internal Capture(RenderTexture cameraTexture, RenderTexture depthTexture)
+            {
+                m_cameraTexture = cameraTexture;
+                m_depthTexture = depthTexture;
+            }
+            
+            /// <summary>
+            /// Refers to <see cref="CameraCapture.cameraTexture"/>.
+            /// </summary>
+            public RenderTexture cameraTexture => m_cameraTexture;
+        
+            /// <summary>
+            /// Refers to <see cref="CameraCapture.depthTexture"/>.
+            /// </summary>
+            public RenderTexture depthTexture => m_depthTexture;
+        }
+
         /// <summary>
         /// Called once textures have been captured and are ready to be consumed.
         /// </summary>
-        public event Action<ScriptableRenderContext, CameraCapture> onTexturesReady = delegate {};
+        public event Action<ScriptableRenderContext, Capture> onCapture = delegate {};
         
         /// <summary>
         /// <para>
@@ -124,6 +146,7 @@ namespace Disguise.RenderStream
         
         /// <summary>
         /// The captured depth texture. Its format is defined by <see cref="description"/>.
+        /// <remarks><see langword="null"/> if <see cref="description"/> is not configured for depth.</remarks>
         /// </summary>
         public RenderTexture depthTexture => m_depthTexture;
 
@@ -157,23 +180,24 @@ namespace Disguise.RenderStream
 
 #if UNITY_EDITOR
         CameraCaptureDescription m_lastDescription = CameraCaptureDescription.Default;
-        bool m_RefreshFlag; // Ensures thread safety (OnValidate is on a different thread)
+        bool m_EditorChangedFlag; // Ensures thread safety (OnValidate is on a different thread)
         
         void OnValidate()
         {
-            if (m_lastDescription != m_description)
-            {
-                m_lastDescription = m_description;
-                m_RefreshFlag = true;
-            }
+            m_EditorChangedFlag = true;
         }
-
+        
         void Update()
         {
-            if (m_RefreshFlag)
+            if (m_EditorChangedFlag)
             {
-                m_RefreshFlag = false;
-                Refresh();
+                m_EditorChangedFlag = false;
+
+                if (m_lastDescription != m_description)
+                {
+                    m_lastDescription = m_description;
+                    Refresh();
+                }
             }
         }
 #endif
@@ -184,8 +208,7 @@ namespace Disguise.RenderStream
             
             m_camera = GetComponent<Camera>();
             
-            if (m_description.IsValid)
-                CreateResources(m_description);
+            CreateResources(m_description);
         }
 
         void OnEnable()
@@ -210,19 +233,20 @@ namespace Disguise.RenderStream
         {
             DisposeResources();
             CreateResources(m_description);
-            m_camera.targetTexture = m_cameraTexture;
         }
 
         void CreateResources(CameraCaptureDescription desc)
         {
             if (!desc.IsValid)
             {
-                Debug.LogWarning("Invalid description");
+                Debug.LogWarning("CameraCapture has invalid description, will be disabled.");
                 return;
             }
 
             var cameraDesc = desc.GetCameraDescriptor();
             m_cameraTexture = new RenderTexture(cameraDesc);
+            
+            m_camera.targetTexture = m_cameraTexture;
 
             if (desc.m_copyDepth)
             {
@@ -254,10 +278,10 @@ namespace Disguise.RenderStream
             if (m_description.m_copyDepth)
             {
                 m_depthCopy.mode = m_description.m_depthCopyMode;
-                m_depthCopy.Execute(ctx, new DepthCopy.FrameData() { m_depthOutput = m_depthTexture });
+                m_depthCopy.Execute(ctx, m_depthTexture);
             }
 
-            onTexturesReady.Invoke(ctx, this);
+            onCapture.Invoke(ctx, new Capture(m_cameraTexture, m_depthTexture));
 
 #if DEBUG
             // A RenderTexture holds MSAA and resolved versions of its textures.
