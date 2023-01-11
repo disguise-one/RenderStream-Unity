@@ -174,33 +174,10 @@ namespace Disguise.RenderStream
         Camera m_camera;
         RenderTexture m_cameraTexture;
         RenderTexture m_depthTexture;
+        CameraCaptureDescription m_lastDescription;
         
 #if DEBUG
         bool m_HasSetSecondNames;        
-#endif
-
-#if UNITY_EDITOR
-        CameraCaptureDescription m_lastDescription = CameraCaptureDescription.Default;
-        bool m_EditorChangedFlag; // Ensures thread safety (OnValidate is on a different thread)
-        
-        void OnValidate()
-        {
-            m_EditorChangedFlag = true;
-        }
-        
-        void Update()
-        {
-            if (m_EditorChangedFlag)
-            {
-                m_EditorChangedFlag = false;
-
-                if (m_lastDescription != m_description)
-                {
-                    m_lastDescription = m_description;
-                    Refresh();
-                }
-            }
-        }
 #endif
 
         void Awake()
@@ -229,6 +206,15 @@ namespace Disguise.RenderStream
         {
             DisposeResources();
         }
+        
+        // Check for updates from the inspector UI
+#if UNITY_EDITOR
+        void Update()
+        {
+            if (m_lastDescription != m_description)
+                Refresh();
+        }
+#endif
 
         void Refresh()
         {
@@ -238,6 +224,8 @@ namespace Disguise.RenderStream
 
         void CreateResources(CameraCaptureDescription desc)
         {
+            m_lastDescription = desc;
+            
             if (!desc.IsValid)
             {
                 Debug.LogWarning("CameraCapture has invalid description, will be disabled.");
