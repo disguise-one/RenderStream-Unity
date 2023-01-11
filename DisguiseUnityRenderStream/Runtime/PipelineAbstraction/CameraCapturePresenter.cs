@@ -46,12 +46,12 @@ namespace Disguise.RenderStream
             switch (m_mode)
             {
                 case Mode.Color:
-                    m_source = m_cameraCapture.cameraTexture;
+                    source = m_cameraCapture.cameraTexture;
                     break;
                 
                 case Mode.Depth:
                     Assert.IsTrue(m_cameraCapture.description.m_copyDepth);
-                    m_source = m_cameraCapture.depthTexture;
+                    source = m_cameraCapture.depthTexture;
                     break;
                     
                 default:

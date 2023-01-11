@@ -166,25 +166,46 @@ namespace Disguise.RenderStream
         const string k_profilerTag = "Disguise Presenter";
         const string k_profilerClearTag = "Disguise Presenter Clear";
 
-        public PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.FillAspectRatio;
+        [SerializeField]
+        RenderTexture m_source;
         
+        [SerializeField]
+        PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.FillAspectRatio;
+
+        [SerializeField]
+        bool m_clearScreen;
+        
+        Backend m_backEnd;
+
+        public PresenterStrategy.Strategy strategy
+        {
+            get => m_strategy;
+            set => m_strategy = value;
+        }
+
         /// <summary>
         /// The texture to present. Can be any 2D texture.
         /// </summary>
-        public RenderTexture m_source;
-        
+        public RenderTexture source
+        {
+            get => m_source;
+            set => m_source = value;
+        }
+
         /// <summary>
         /// When Unity has no onscreen cameras the screen might never be cleared.
         /// </summary>
-        public bool m_clearScreen;
+        public bool clearScreen
+        {
+            get => m_clearScreen;
+            set => m_clearScreen = value;
+        }
 
         public bool IsValid => m_source != null;
 
         public Vector2 sourceSize => new Vector2(m_source.width, m_source.height);
         
         public Vector2 targetSize => new Vector2(Screen.width, Screen.height);
-
-        Backend m_backEnd;
 
         /// <summary>
         /// Can override to setup <see cref="m_source"/>.
