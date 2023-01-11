@@ -189,7 +189,7 @@ namespace Disguise.RenderStream
         public RenderTexture source
         {
             get => m_source;
-            set => m_source = value;
+            protected set => m_source = value;
         }
 
         /// <summary>
