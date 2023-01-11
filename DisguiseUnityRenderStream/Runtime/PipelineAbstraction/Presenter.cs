@@ -160,6 +160,7 @@ namespace Disguise.RenderStream
     ///
     /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
     /// </summary>
+    [ExecuteAlways]
     class Presenter : MonoBehaviour
     {
         const string k_profilerTag = "Disguise Presenter";
@@ -183,17 +184,25 @@ namespace Disguise.RenderStream
         
         public Vector2 targetSize => new Vector2(Screen.width, Screen.height);
 
+        Backend m_backEnd;
+
         /// <summary>
         /// Can override to setup <see cref="m_source"/>.
         /// </summary>
         protected virtual void OnEnable()
         {
-            RenderPipelineManager.endContextRendering += OnEndContextRendering;
+#if UNITY_EDITOR
+            m_backEnd = new EditorBackend(this);
+#else
+            m_backEnd = new PlayerBackend(this);
+#endif
+            
+            m_backEnd.Enable();
         }
         
         protected virtual void OnDisable()
         {
-            RenderPipelineManager.endContextRendering -= OnEndContextRendering;
+            m_backEnd.Disable();
         }
 
         protected virtual void Update()
@@ -220,17 +229,6 @@ namespace Disguise.RenderStream
             return scaleBias;
         }
 
-        protected virtual void Present(ScriptableRenderContext context)
-        {
-            CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
-            IssueCommands(cmd);
-
-            context.ExecuteCommandBuffer(cmd);
-            context.Submit();
-            
-            CommandBufferPool.Release(cmd);
-        }
-
         void IssueCommands(CommandBuffer cmd)
         {
             RenderTexture screen = default;
@@ -254,11 +252,105 @@ namespace Disguise.RenderStream
             
             CommandBufferPool.Release(cmd);
         }
-
-        void OnEndContextRendering(ScriptableRenderContext context, List<Camera> _)
+        
+        abstract class Backend
         {
-            if (IsValid)
-                Present(context);
+            protected Presenter m_presenter;
+            
+            protected Backend(Presenter presenter)
+            {
+                m_presenter = presenter;
+            }
+
+            protected bool ShouldRun => m_presenter.IsValid;
+        
+            public abstract void Enable();
+            public abstract void Disable();
         }
+        
+#if UNITY_EDITOR
+        /// <summary>
+        /// Drawing after WaitForEndOfFrame ensures that we target the editor's intermediate "GameView RT" instead of the screen.
+        /// </summary>
+        class EditorBackend : Backend
+        {
+            Coroutine m_FrameLoop;
+            
+            public EditorBackend(Presenter presenter):
+                base(presenter)
+            {
+                
+            }
+            
+            public override void Enable()
+            {
+                m_FrameLoop = m_presenter.StartCoroutine(FrameLoop());
+            }
+        
+            public override void Disable()
+            {
+                m_presenter.StopCoroutine(m_FrameLoop);
+                m_FrameLoop = null;
+            }
+            
+            IEnumerator FrameLoop()
+            {
+                while (true)
+                {
+                    yield return new WaitForEndOfFrame();
+                    
+                    if (!ShouldRun)
+                        continue;
+                
+                    CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
+                    m_presenter.IssueCommands(cmd);
+
+                    Graphics.ExecuteCommandBuffer(cmd);
+                    
+                    CommandBufferPool.Release(cmd);
+                }
+            }
+        }
+#else
+        /// <summary>
+        /// In the player we can draw directly to the screen.
+        /// </summary>
+        class PlayerBackend : Backend
+        {
+            public PlayerBackend(Presenter presenter):
+                base(presenter)
+            {
+                
+            }
+            
+            public override void Enable()
+            {
+                RenderPipelineManager.endContextRendering += OnEndContextRendering;
+            }
+        
+            public override void Disable()
+            {
+                RenderPipelineManager.endContextRendering -= OnEndContextRendering;
+            }
+        
+            void OnEndContextRendering(ScriptableRenderContext context, List<Camera> _)
+            {
+                if (!ShouldRun)
+                    return;
+                
+                // Check that we're in the correct context (ex not rendering probes)
+                if (RenderTexture.active != null)
+                    return;
+                
+                CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
+                m_presenter.IssueCommands(cmd);
+
+                context.ExecuteCommandBuffer(cmd);
+                context.Submit();
+        
+                CommandBufferPool.Release(cmd);
+            }
+        }
+#endif
     }
 }

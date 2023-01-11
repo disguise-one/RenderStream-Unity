@@ -1,7 +1,6 @@
 using System;
 using UnityEngine;
 using UnityEngine.Assertions;
-using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
@@ -16,6 +15,7 @@ namespace Disguise.RenderStream
     /// mouse coordinates to account for the blit.
     /// </para>
     /// </summary>
+    [ExecuteAlways]
     class CameraCapturePresenter : Presenter
     {
         /// <summary>
@@ -31,29 +31,12 @@ namespace Disguise.RenderStream
         Mode m_mode;
         
         CameraCapture m_cameraCapture;
-        RenderTexture m_ColorTexture;
-        RenderTexture m_DepthTexture;
         
         protected override void OnEnable()
         {
             base.OnEnable();
 
             m_cameraCapture = GetComponent<CameraCapture>();
-            m_cameraCapture.onCapture += OnCapture;
-        }
-        
-        protected override void OnDisable()
-        {
-            base.OnEnable();
-
-            if (m_cameraCapture != null)
-                m_cameraCapture.onCapture -= OnCapture;
-        }
-
-        void OnCapture(ScriptableRenderContext context, CameraCapture.Capture capture)
-        {
-            m_ColorTexture = capture.cameraTexture;
-            m_DepthTexture = capture.depthTexture;
         }
 
         protected override void Update()
@@ -63,12 +46,12 @@ namespace Disguise.RenderStream
             switch (m_mode)
             {
                 case Mode.Color:
-                    m_source = m_ColorTexture;
+                    m_source = m_cameraCapture.cameraTexture;
                     break;
                 
                 case Mode.Depth:
                     Assert.IsTrue(m_cameraCapture.description.m_copyDepth);
-                    m_source = m_DepthTexture;
+                    m_source = m_cameraCapture.depthTexture;
                     break;
                     
                 default:

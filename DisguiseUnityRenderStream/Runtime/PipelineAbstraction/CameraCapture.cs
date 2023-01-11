@@ -14,6 +14,7 @@ namespace Disguise.RenderStream
     /// It will handle size and aspect ratio differences between the screen and the texture.
     /// </remarks>
     /// </summary>
+    [ExecuteAlways]
     [RequireComponent(typeof(Camera))]
     class CameraCapture : MonoBehaviour
     {
