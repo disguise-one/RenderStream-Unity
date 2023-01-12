@@ -18,9 +18,9 @@ namespace Disguise.RenderStream
         {
             /// <summary>
             /// Stretches the source to have the same size as the destination.
-            /// The aspect ratio is lost.
+            /// The aspect ratio may be lost.
             /// </summary>
-            Fill,
+            Stretch,
             
             /// <summary>
             /// The source isn't scaled at all but it's centered within the destination.
@@ -47,7 +47,7 @@ namespace Disguise.RenderStream
             /// The source is scaled while conserving the aspect ratio to fill the destination.
             /// It can overflow but won't leave black bars on the sides.
             /// </summary>
-            FillAspectRatio
+            Fill
         }
 
         /// <summary>
@@ -58,8 +58,8 @@ namespace Disguise.RenderStream
         {
             switch (strategy)
             {
-                case Strategy.Fill:
-                    return Fill(srcSize, dstSize);
+                case Strategy.Stretch:
+                    return Stretch(srcSize, dstSize);
                 case Strategy.NoResize:
                     return NoResize(srcSize, dstSize);
                 case Strategy.FitWidth:
@@ -68,14 +68,14 @@ namespace Disguise.RenderStream
                     return FitHeight(srcSize, dstSize);
                 case Strategy.Letterbox:
                     return Letterbox(srcSize, dstSize);
-                case Strategy.FillAspectRatio:
-                    return FillAspectRatio(srcSize, dstSize);
+                case Strategy.Fill:
+                    return Fill(srcSize, dstSize);
                 default:
                     throw new NotImplementedException();
             }
         }
         
-        static Vector4 Fill(Vector2 srcSize, Vector2 dstSize)
+        static Vector4 Stretch(Vector2 srcSize, Vector2 dstSize)
         {
             return new Vector4(1f, 1f, 0f, 0f);
         }
@@ -115,7 +115,7 @@ namespace Disguise.RenderStream
                 return FitHeight(srcSize, dstSize);
         }
         
-        static Vector4 FillAspectRatio(Vector2 srcSize, Vector2 dstSize)
+        static Vector4 Fill(Vector2 srcSize, Vector2 dstSize)
         {
             var scrAspect = AspectRatio(srcSize);
             var dstAspect = AspectRatio(dstSize);
@@ -170,7 +170,7 @@ namespace Disguise.RenderStream
         RenderTexture m_source;
         
         [SerializeField]
-        PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.FillAspectRatio;
+        PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.Fill;
 
         [SerializeField]
         bool m_clearScreen;

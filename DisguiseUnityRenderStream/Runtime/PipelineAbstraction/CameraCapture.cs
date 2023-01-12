@@ -191,6 +191,10 @@ namespace Disguise.RenderStream
 
         void OnEnable()
         {
+#if (!HDRP) && (!URP)
+            Debug.LogError($"No supported render pipeline was found for {nameof(CameraCapture)}.");
+#endif
+            
             RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
 
             if (m_depthCopy == null)
@@ -228,7 +232,7 @@ namespace Disguise.RenderStream
             
             if (!desc.IsValid)
             {
-                Debug.LogWarning("CameraCapture has invalid description, will be disabled.");
+                Debug.LogWarning($"{nameof(CameraCapture)} has invalid description, will be disabled.");
                 return;
             }
 
@@ -244,9 +248,9 @@ namespace Disguise.RenderStream
             }
             
 #if DEBUG
-            m_cameraTexture.name = $"CameraCapture Camera Texture Initial {m_cameraTexture.width}x{m_cameraTexture.height}";
+            m_cameraTexture.name = $"{nameof(CameraCapture)} Camera Texture Initial {m_cameraTexture.width}x{m_cameraTexture.height}";
             if (m_depthTexture != null)
-                m_depthTexture.name = $"CameraCapture Depth Copy Texture Initial {m_depthTexture.width}x{m_depthTexture.height}";
+                m_depthTexture.name = $"{nameof(CameraCapture)} Depth Copy Texture Initial {m_depthTexture.width}x{m_depthTexture.height}";
             m_HasSetSecondNames = false;
 #endif
         }
@@ -277,9 +281,9 @@ namespace Disguise.RenderStream
             // This second naming step will name the resolved textures which Unity creates in a deferred manner.
             if (!m_HasSetSecondNames)
             {
-                m_cameraTexture.name = $"CameraCapture Camera Texture {m_cameraTexture.width}x{m_cameraTexture.height}";
+                m_cameraTexture.name = $"{nameof(CameraCapture)} Camera Texture {m_cameraTexture.width}x{m_cameraTexture.height}";
                 if (m_depthTexture != null)
-                    m_depthTexture.name = $"CameraCapture Depth Copy Texture {m_depthTexture.width}x{m_depthTexture.height}";
+                    m_depthTexture.name = $"{nameof(CameraCapture)} Depth Copy Texture {m_depthTexture.width}x{m_depthTexture.height}";
                 m_HasSetSecondNames = true;
             }
 #endif

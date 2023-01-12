@@ -10,10 +10,12 @@ namespace Disguise.RenderStream
     /// </summary>
     class DepthCopy
     {
-#if HDRP_13_1_8_OR_NEWER
+#if HDRP
         const string k_ShaderName = "Hidden/Disguise/RenderStream/DepthCopyHDRP";
-#elif URP_13_1_8_OR_NEWER
+#elif URP
         const string k_ShaderName = "Hidden/Disguise/RenderStream/DepthCopyURP";
+#else
+        const string k_ShaderName = null;
 #endif
         
         /// <summary>
@@ -118,8 +120,12 @@ namespace Disguise.RenderStream
         
         static DepthCopy()
         {
+#if (!HDRP) && !(SRP)
+            Debug.LogError($"No supported render pipeline was found for {nameof(DepthCopy)}.");
+#endif
+            
             s_shaderVariantResources.Create(k_ShaderName, k_ShaderPass);
-            Assert.IsTrue(s_shaderVariantResources.IsLoaded, "Couldn't load the shader resources for DepthCopy");
+            Assert.IsTrue(s_shaderVariantResources.IsLoaded, $"Couldn't load the shader resources for {nameof(DepthCopy)}");
         }
 
         public DepthCopy()
@@ -156,7 +162,7 @@ namespace Disguise.RenderStream
         {
             // HDRP cameras always have a depth texture
             
-#if URP_13_1_8_OR_NEWER
+#if URP
             var pipeline = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
             Assert.IsNotNull(pipeline);
             if (!pipeline.supportsCameraDepthTexture)

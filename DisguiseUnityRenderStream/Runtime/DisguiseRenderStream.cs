@@ -55,6 +55,8 @@ namespace Disguise.RenderStream
             {
                 Instance.OnSceneLoaded(scene, LoadSceneMode.Single);
             }
+
+            DisguiseFramerateManager.Initialize();
         }
 
         struct RenderStreamUpdate { }
@@ -440,6 +442,8 @@ namespace Disguise.RenderStream
             {
                 ProcessFrameData(LatestFrameData);
             }
+
+            DisguiseFramerateManager.Update();
         }
 
         static Camera[] getTemplateCameras()
