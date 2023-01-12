@@ -120,7 +120,7 @@ namespace Disguise.RenderStream
         
         static DepthCopy()
         {
-#if (!HDRP) && !(SRP)
+#if (!HDRP) && !(URP)
             Debug.LogError($"No supported render pipeline was found for {nameof(DepthCopy)}.");
 #endif
             
