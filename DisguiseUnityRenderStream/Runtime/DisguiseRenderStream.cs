@@ -55,8 +55,6 @@ namespace Disguise.RenderStream
             {
                 Instance.OnSceneLoaded(scene, LoadSceneMode.Single);
             }
-
-            DisguiseFramerateManager.Initialize();
         }
 
         struct RenderStreamUpdate { }

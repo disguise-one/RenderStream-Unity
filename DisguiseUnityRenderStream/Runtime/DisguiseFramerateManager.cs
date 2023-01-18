@@ -19,6 +19,7 @@ namespace Disguise.RenderStream
         static bool s_WarnedVSync;
         static bool s_WarnedFrameRate;
 
+        [RuntimeInitializeOnLoadMethod]
         public static void Initialize()
         {
 #if !ENABLE_CLUSTER_DISPLAY
