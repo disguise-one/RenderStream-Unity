@@ -440,6 +440,8 @@ namespace Disguise.RenderStream
             {
                 ProcessFrameData(LatestFrameData);
             }
+
+            DisguiseFramerateManager.Update();
         }
 
         static Camera[] getTemplateCameras()

@@ -29,6 +29,8 @@ namespace Disguise.RenderStream
                 Debug.LogError("DisguiseRenderStream: RenderStream DLL not available, could not save schema");
                 return;
             }
+
+            CheckVsync();
             
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
             var schema = new ManagedSchema
@@ -108,6 +110,14 @@ namespace Disguise.RenderStream
                 .SelectMany(p => p.exposedParameters()));
             
             currentScene.parameters = parameters.ToArray();
+        }
+
+        static void CheckVsync()
+        {
+            if (DisguiseFramerateManager.Enabled && DisguiseFramerateManager.VSyncIsEnabled)
+            {
+                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}{nameof(QualitySettings.vSyncCount)} is currently enabled. For best performance disable vSync in the project settings.");
+            }
         }
     }
 }
