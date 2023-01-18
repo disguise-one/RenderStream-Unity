@@ -31,13 +31,13 @@ namespace Disguise.RenderStream
 #if !ENABLE_CLUSTER_DISPLAY
             if (!s_WarnedVSync && VSyncIsEnabled)
             {
-                Debug.LogWarning($"{nameof(DisguiseFramerateManager)}: {nameof(QualitySettings)}{nameof(QualitySettings.vSyncCount)} is enabled and may affect performance.");
+                Debug.LogWarning($"{nameof(DisguiseFramerateManager)}: {nameof(QualitySettings)}.{nameof(QualitySettings.vSyncCount)} is enabled and may affect performance.");
                 s_WarnedVSync = true;
             }
 
             if (!s_WarnedFrameRate && FrameRateIsLimited)
             {
-                Debug.LogWarning($"{nameof(DisguiseFramerateManager)}: {nameof(Application)}{nameof(Application.targetFrameRate)} is limiting framerate and may affect performance.");
+                Debug.LogWarning($"{nameof(DisguiseFramerateManager)}: {nameof(Application)}.{nameof(Application.targetFrameRate)} is limiting framerate and may affect performance.");
                 s_WarnedFrameRate = true;
             }
 #endif
