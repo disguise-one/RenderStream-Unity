@@ -1,11 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Disguise.RenderStream.Utils;
 using Unity.Collections;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.PlayerLoop;
 using UnityEngine.SceneManagement;
@@ -233,16 +230,7 @@ namespace Disguise.RenderStream
                 DisguiseCameraCapture capture = cameraObject.GetComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
                 if (capture == null)
                     capture = cameraObject.AddComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
-// Blocks HDRP streams in r18.2
-// #if UNITY_PIPELINE_HDRP
-//             Volume volume = cameraObject.GetComponent<Volume>();
-//             if (volume == null)
-//                 volume = cameraObject.AddComponent<Volume>();
-//             volume.profile = ScriptableObject.CreateInstance<VolumeProfile>();
-//             var captureAfterPostProcess = volume.profile.Add<DisguiseCameraCaptureAfterPostProcess>(true);
-//             captureAfterPostProcess.width.value = (Int32)stream.width;
-//             captureAfterPostProcess.height.value = (Int32)stream.height;
-// #endif
+
                 camera.enabled = true;
             }
 
