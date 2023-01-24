@@ -74,7 +74,7 @@ namespace Disguise.RenderStream
             }
         }
 
-        static void UpdateCamera(Camera cam, in CameraData? cameraData, in Rect? cameraSubRegion)
+        static void UpdateCamera(Camera cam, CameraData? cameraData, Rect? cameraSubRegion)
         {
             var transform = cam.transform;
             var cameraAspect = cam.aspect;
