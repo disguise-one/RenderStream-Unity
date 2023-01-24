@@ -49,7 +49,6 @@ namespace Disguise.RenderStream
             m_capture.enabled = false;
         }
 
-        // TODO: inject somewhere early in the player loop?
         void Update()
         {
             if (m_RenderStream == null)
