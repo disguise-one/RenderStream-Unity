@@ -120,17 +120,21 @@ namespace Disguise.RenderStream
         
         static DepthCopy()
         {
+#if DISGUISE_CAPTURE_DEPTH
 #if (!HDRP) && !(URP)
             Debug.LogError($"No supported render pipeline was found for {nameof(DepthCopy)}.");
 #endif
             
             s_shaderVariantResources.Create(k_ShaderName, k_ShaderPass);
             Assert.IsTrue(s_shaderVariantResources.IsLoaded, $"Couldn't load the shader resources for {nameof(DepthCopy)}");
+#endif
         }
 
         public DepthCopy()
         {
+#if DISGUISE_CAPTURE_DEPTH
             mode = Mode.Linear01;
+#endif
         }
 
         /// <summary>
@@ -139,6 +143,7 @@ namespace Disguise.RenderStream
         /// <param name="depthOutput">The texture to which the depth will be written to.</param>
         public void Execute(ScriptableRenderContext context, RenderTexture depthOutput)
         {
+#if DISGUISE_CAPTURE_DEPTH
             Assert.IsNotNull(depthOutput);
             Assert.IsTrue(m_shaderResources.IsLoaded);
 
@@ -151,6 +156,7 @@ namespace Disguise.RenderStream
             context.Submit();
             
             CommandBufferPool.Release(cmd);
+#endif
         }
         
         void IssueCommands(CommandBuffer cmd, RenderTexture depthOutput)
