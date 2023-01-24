@@ -19,7 +19,24 @@ namespace Disguise.RenderStream
             RGBA8,
         }
         
+        public enum EventID
+        {
+            GetFrameImage
+        }
+
+        public struct GetFrameImageData
+        {
+            public IntPtr m_rs_getFrameImage;
+            public Int64 m_ImageId;
+            public IntPtr m_Texture;
+        }
+        
 #if NATIVE_RENDERING_PLUGIN_AVAILABLE
+        public static IntPtr GetRenderEventCallback()
+        {
+            return NativeRenderingPluginNative.GetRenderEventCallback();
+        }
+        
         public static bool IsInitialized()
         {
             return NativeRenderingPluginNative.IsInitialized();
@@ -52,6 +69,11 @@ namespace Disguise.RenderStream
             return IntPtr.Zero;
         }
 #else
+        public static IntPtr GetRenderEventCallback()
+        {
+            return IntPtr.Zero;
+        }
+
         public static bool IsInitialized()
         {
             return false;
@@ -78,6 +100,9 @@ namespace Disguise.RenderStream
     static class NativeRenderingPluginNative
     {
         const string PluginName = "NativeRenderingPlugin";
+        
+        [DllImport(PluginName)]
+        public static extern IntPtr GetRenderEventCallback();
         
         [DllImport(PluginName)]
         public static extern bool IsInitialized();

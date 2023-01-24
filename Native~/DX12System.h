@@ -4,7 +4,7 @@
 #include "Unity/IUnityInterface.h"
 #include "Unity/IUnityGraphics.h"
 
-class IDXGISwapChain;
+struct IDXGISwapChain;
 #include "d3d12.h"
 #include "Unity/IUnityGraphicsD3D12.h"
 
