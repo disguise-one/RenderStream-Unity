@@ -58,10 +58,12 @@ namespace Disguise.RenderStream
         }
 
         struct RenderStreamUpdate { }
+        struct RenderStreamFinishFrameRendering { }
 
         protected virtual void Initialize()
         {
             PlayerLoopExtensions.RegisterUpdate<TimeUpdate.WaitForLastPresentationAndUpdateTime, RenderStreamUpdate>(AwaitFrame);
+            PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, RenderStreamFinishFrameRendering>(FinishFrameRendering);
             RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
         }
 
@@ -249,8 +251,6 @@ namespace Disguise.RenderStream
             Awaiting = false;
         }
     
-        readonly List<Texture2D> m_ScratchTextures = new ();
-    
         protected void ProcessFrameData(in FrameData receivedFrameData)
         {
             if (receivedFrameData.scene >= m_Schema.scenes.Length) return;
@@ -396,6 +396,11 @@ namespace Disguise.RenderStream
             DisguiseFramerateManager.Update();
         }
 
+        protected void FinishFrameRendering()
+        {
+            Texture2DPool.Instance.Update();
+        }
+
         // Updates the RenderTextures assigned to image parameters on the render thread to avoid stalling the main thread
         protected void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
         {
@@ -419,38 +424,18 @@ namespace Disguise.RenderStream
             using var imageData = new NativeArray<ImageFrameData>(nImageParameters, Allocator.Temp);
             if (PluginEntry.instance.GetFrameImageData(spec.hash, imageData.AsSpan()) != RS_ERROR.RS_ERROR_SUCCESS)
                 return;
-            
-            while (m_ScratchTextures.Count < imageData.Length)
-            {
-                var index = m_ScratchTextures.Count;
-                
-                m_ScratchTextures.Add(new Texture2D(
-                    (int)imageData[index].width,
-                    (int)imageData[index].height,
-                    PluginEntry.ToTextureFormat(imageData[index].format),
-                    false,
-                    true));
-            }
 
             var i = 0;
             foreach (var field in images)
             {
                 if (field.GetValue() is RenderTexture renderTexture)
                 {
-                    Texture2D texture = m_ScratchTextures[i];
-                    if (texture.width != imageData[i].width ||
-                        texture.height != imageData[i].height ||
-                        texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
-                    {
-                        m_ScratchTextures[i] = new Texture2D(
-                            (int)imageData[i].width,
-                            (int)imageData[i].height,
-                            PluginEntry.ToTextureFormat(imageData[i].format), 
-                            false,
-                            true);
-                        
-                        texture = m_ScratchTextures[i];
-                    }
+                    var texture = Texture2DPool.Instance.Get(new Texture2DDescriptor() {
+                        Width = (int)imageData[i].width,
+                        Height = (int)imageData[i].height,
+                        Format = PluginEntry.ToTextureFormat(imageData[i].format),
+                        Linear = true
+                    });
                     
                     var cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameter '{field.info.Name}'");
                     
