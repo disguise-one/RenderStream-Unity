@@ -3,6 +3,7 @@
 #endif
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Disguise.RenderStream
@@ -30,7 +31,17 @@ namespace Disguise.RenderStream
             public Int64 m_ImageId;
             public IntPtr m_Texture;
         }
-        
+
+        public static EventDataPool<GetFrameImageData> GetFrameImageDataPool { get; } = new EventDataPool<GetFrameImageData>();
+
+        /// <summary>
+        /// Call once at the end of the frame.
+        /// </summary>
+        public static void OnFrameEnd()
+        {
+            GetFrameImageDataPool.OnFrameEnd();
+        }
+
 #if NATIVE_RENDERING_PLUGIN_AVAILABLE
         public static IntPtr GetRenderEventCallback()
         {
@@ -117,4 +128,79 @@ namespace Disguise.RenderStream
         public static extern IntPtr CreateNativeTexture([MarshalAs(UnmanagedType.LPWStr)] string name, int width, int height, int pixelFormat);
     }
 #endif
+
+    class EventDataPool<TData> : IDisposable
+    {
+        class Item : IDisposable
+        {
+            public TData Data;
+            public GCHandle Handle;
+            public int FramesSinceCreated;
+
+            public void Dispose()
+            {
+                Handle.Free();
+            }
+
+            public void Update()
+            {
+                FramesSinceCreated++;
+            }
+        }
+
+        // There can be max 1 pipelined render thread frame in progress, so we keep alive for 2 main thread frames
+        const int k_NumFramesToKeepAlive = 2;
+
+        readonly List<Item> m_InUse = new List<Item>();
+
+        public void Dispose()
+        {
+            foreach (var item in m_InUse)
+            {
+                item.Dispose();
+            }
+            
+            m_InUse.Clear();
+        }
+        
+        public IntPtr Pin(TData data)
+        {
+            var item = new Item
+            {
+                Data = data,
+                FramesSinceCreated = 0
+            };
+            item.Handle = GCHandle.Alloc(item.Data, GCHandleType.Pinned);
+
+            m_InUse.Add(item);
+            return item.Handle.AddrOfPinnedObject();
+        }
+
+        /// <summary>
+        /// Call once at the end of the frame.
+        /// </summary>
+        public void OnFrameEnd()
+        {
+            for (var i = 0; i < m_InUse.Count; i++)
+            {
+                var item = m_InUse[i];
+
+                if (ShouldDispose(item))
+                {
+                    m_InUse.RemoveAt(i);
+                    i--;
+                    item.Dispose();
+                }
+                else
+                {
+                    item.Update();
+                }
+            }
+        }
+
+        bool ShouldDispose(Item item)
+        {
+            return item.FramesSinceCreated >= k_NumFramesToKeepAlive;
+        }
+    }
 }

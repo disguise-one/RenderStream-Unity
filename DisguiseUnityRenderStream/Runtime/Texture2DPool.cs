@@ -143,9 +143,9 @@ namespace Disguise.RenderStream
         }
 
         /// <summary>
-        /// Should be called towards the end of each frame, after all texture operations have been performed.
+        /// Call once at the end of the frame, after all texture operations have been performed.
         /// </summary>
-        public void Update()
+        public void OnFrameEnd()
         {
             var texturesToRelease = ListPool<Texture2DDescriptor>.Get();
 

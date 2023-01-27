@@ -398,7 +398,8 @@ namespace Disguise.RenderStream
 
         protected void FinishFrameRendering()
         {
-            Texture2DPool.Instance.Update();
+            NativeRenderingPlugin.OnFrameEnd();
+            Texture2DPool.Instance.OnFrameEnd();
         }
 
         // Updates the RenderTextures assigned to image parameters on the render thread to avoid stalling the main thread
@@ -446,13 +447,10 @@ namespace Disguise.RenderStream
                         m_Texture = texture.GetNativeTexturePtr()
                     };
                     
-                    // TODO fix leak, this only needs to be valid for the duration of a (render thread) frame
-                    var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
-                    
                     cmd.IssuePluginEventAndData(
                         NativeRenderingPlugin.GetRenderEventCallback(),
                         (int)NativeRenderingPlugin.EventID.GetFrameImage,
-                        handle.AddrOfPinnedObject());
+                        NativeRenderingPlugin.GetFrameImageDataPool.Pin(data));
                     cmd.IncrementUpdateCount(texture);
                     
                     cmd.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
