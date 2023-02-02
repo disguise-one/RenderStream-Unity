@@ -434,35 +434,43 @@ namespace Disguise.RenderStream
                     // by CUDA interop (used by Disguise under the hood):
                     // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__D3D11.html#group__CUDART__D3D11_1g85d07753780643584b8febab0370623b
                     // Texture2D apply their GraphicsFormat to their texture resources.
-                    
-                    var texture = Texture2DPool.Instance.Get(new Texture2DDescriptor() {
+
+                    var texture = Texture2DPool.Instance.Get(new Texture2DDescriptor()
+                    {
                         Width = (int)imageData[i].width,
                         Height = (int)imageData[i].height,
                         Format = PluginEntry.ToTextureFormat(imageData[i].format),
                         Linear = true
                     });
-                    
-                    var cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameter '{field.info.Name}'");
-                    
+
                     NativeRenderingPlugin.InputImageData data = new NativeRenderingPlugin.InputImageData()
                     {
                         m_rs_getFrameImage = PluginEntry.instance.rs_getFrameImage_ptr,
                         m_ImageId = imageData[i].imageId,
                         m_Texture = texture.GetNativeTexturePtr()
                     };
-                    
-                    cmd.IssuePluginEventAndData(
-                        NativeRenderingPlugin.GetRenderEventCallback(),
-                        (int)NativeRenderingPlugin.EventID.InputImage,
-                        NativeRenderingPlugin.GetFrameImageDataPool.Pin(data));
-                    cmd.IncrementUpdateCount(texture);
-                    
-                    cmd.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-                    cmd.IncrementUpdateCount(renderTexture);
-                    
-                    context.ExecuteCommandBuffer(cmd);
-                    
-                    CommandBufferPool.Release(cmd);
+
+                    if (NativeRenderingPlugin.InputImageDataPool.TryPreserve(data, out var dataPtr))
+                    {
+                        var cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameter '{field.info.Name}'");
+
+                        cmd.IssuePluginEventAndData(
+                            NativeRenderingPlugin.GetRenderEventCallback(),
+                            (int)NativeRenderingPlugin.EventID.InputImage,
+                            dataPtr);
+                        cmd.IncrementUpdateCount(texture);
+
+                        cmd.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+                        cmd.IncrementUpdateCount(renderTexture);
+
+                        context.ExecuteCommandBuffer(cmd);
+
+                        CommandBufferPool.Release(cmd);
+                    }
+                    else
+                    {
+                        Debug.LogError($"DisguiseRenderStream: {nameof(NativeRenderingPlugin)}.{nameof(NativeRenderingPlugin.InputImageData)} pool exceeded, skipping input texture '{field.info.Name}'");
+                    }
                 }
 
                 ++i;

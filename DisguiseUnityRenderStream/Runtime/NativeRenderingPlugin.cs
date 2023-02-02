@@ -3,9 +3,10 @@
 #endif
 
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Disguise.RenderStream.Utils;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine.PlayerLoop;
 
 namespace Disguise.RenderStream
@@ -36,7 +37,7 @@ namespace Disguise.RenderStream
             public IntPtr m_Texture;
         }
 
-        public static EventDataPool<InputImageData> GetFrameImageDataPool { get; } = new EventDataPool<InputImageData>();
+        public static EventDataPool<InputImageData> InputImageDataPool { get; } = new EventDataPool<InputImageData>();
 
         static NativeRenderingPlugin()
         {
@@ -45,7 +46,7 @@ namespace Disguise.RenderStream
 
         static void OnFinishFrameRendering()
         {
-            GetFrameImageDataPool.OnFrameEnd();
+            InputImageDataPool.OnFrameEnd();
         }
 
 #if NATIVE_RENDERING_PLUGIN_AVAILABLE
@@ -134,79 +135,112 @@ namespace Disguise.RenderStream
         public static extern IntPtr CreateNativeTexture([MarshalAs(UnmanagedType.LPWStr)] string name, int width, int height, int pixelFormat);
     }
 #endif
-
-    class EventDataPool<TData> : IDisposable
+    
+    class EventDataPool<TData> : IDisposable where TData : unmanaged
     {
-        class Item : IDisposable
+        class Record
         {
-            public TData Data;
-            public GCHandle Handle;
-            public int FramesSinceCreated;
+            public bool InUse => m_InUse;
+            public int FramesSinceCreated => m_FramesSinceCreated;
+            
+            bool m_InUse;
+            int m_FramesSinceCreated;
 
-            public void Dispose()
+            public Record()
             {
-                Handle.Free();
+                MarkUnused();
             }
 
+            public void MarkUsed()
+            {
+                m_InUse = true;
+                m_FramesSinceCreated = 0;
+            }
+
+            public void MarkUnused()
+            {
+                m_InUse = false;
+                m_FramesSinceCreated = 0;
+            }
+    
             public void Update()
             {
-                FramesSinceCreated++;
+                m_FramesSinceCreated++;
             }
         }
-
+    
         // There can be max 1 pipelined render thread frame in progress, so we keep alive for 2 main thread frames
         const int k_NumFramesToKeepAlive = 2;
-
-        readonly List<Item> m_InUse = new List<Item>();
-
-        public void Dispose()
+    
+        const int k_Capacity = 64;
+        NativeArray<TData> m_Data = new(k_Capacity, Allocator.Persistent);
+        readonly Record[] m_Records = new Record[k_Capacity];
+    
+        public EventDataPool()
         {
-            foreach (var item in m_InUse)
+            for (int i = 0; i < m_Records.Length; i++)
             {
-                item.Dispose();
+                m_Records[i] = new Record();
             }
-            
-            m_InUse.Clear();
         }
         
-        public IntPtr Pin(TData data)
+        public void Dispose()
         {
-            var item = new Item
-            {
-                Data = data,
-                FramesSinceCreated = 0
-            };
-            item.Handle = GCHandle.Alloc(item.Data, GCHandleType.Pinned);
-
-            m_InUse.Add(item);
-            return item.Handle.AddrOfPinnedObject();
+            m_Data.Dispose();
         }
+    
+        // Copy the data into unmanaged memory
+        public bool TryPreserve(TData data, out IntPtr pointer)
+        {
+            var freeIndex = -1;
+            for (var i = 0; i < m_Records.Length; i++)
+            {
+                if (!m_Records[i].InUse)
+                {
+                    freeIndex = i;
+                    m_Records[i].MarkUsed();
+                    break;
+                }
+            }
 
+            if (freeIndex >= 0)
+            {
+                m_Data[freeIndex] = data;
+                unsafe
+                {
+                    TData* ptr = (TData*)m_Data.GetUnsafePtr();
+                    pointer = (IntPtr)(ptr + freeIndex);
+                    return true;
+                }
+            }
+
+            pointer = IntPtr.Zero;
+            return false;
+        }
+    
         /// <summary>
         /// Call once at the end of the frame.
         /// </summary>
         public void OnFrameEnd()
         {
-            for (var i = 0; i < m_InUse.Count; i++)
+            for (var i = m_Records.Length - 1; i >= 0; i--)
             {
-                var item = m_InUse[i];
-
-                if (ShouldDispose(item))
+                var record = m_Records[i];
+    
+                if (ShouldDispose(record))
                 {
-                    m_InUse.RemoveAt(i);
-                    i--;
-                    item.Dispose();
+                    record.MarkUnused();
                 }
                 else
                 {
-                    item.Update();
+                    record.Update();
                 }
             }
         }
-
-        bool ShouldDispose(Item item)
+    
+        static bool ShouldDispose(Record record)
         {
-            return item.FramesSinceCreated >= k_NumFramesToKeepAlive;
+            return record.InUse && record.FramesSinceCreated >= k_NumFramesToKeepAlive;
         }
     }
 }
