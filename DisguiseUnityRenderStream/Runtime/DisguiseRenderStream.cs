@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using Disguise.RenderStream.Utils;
 using Unity.Collections;
@@ -58,12 +57,10 @@ namespace Disguise.RenderStream
         }
 
         struct RenderStreamUpdate { }
-        struct RenderStreamFinishFrameRendering { }
 
         protected virtual void Initialize()
         {
             PlayerLoopExtensions.RegisterUpdate<TimeUpdate.WaitForLastPresentationAndUpdateTime, RenderStreamUpdate>(AwaitFrame);
-            PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, RenderStreamFinishFrameRendering>(FinishFrameRendering);
             RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
         }
 
@@ -371,6 +368,7 @@ namespace Disguise.RenderStream
         {
             RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out var frameData);
             LatestFrameData = frameData;
+            m_HasUpdatedLiveTexturesThisFrame = false;
             
             if (error == RS_ERROR.RS_ERROR_QUIT)
                 Application.Quit();
@@ -396,14 +394,8 @@ namespace Disguise.RenderStream
             DisguiseFramerateManager.Update();
         }
 
-        protected void FinishFrameRendering()
-        {
-            NativeRenderingPlugin.OnFrameEnd();
-            Texture2DPool.Instance.OnFrameEnd();
-        }
-
         // Updates the RenderTextures assigned to image parameters on the render thread to avoid stalling the main thread
-        protected void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+        void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
         {
             if (!HasNewFrameData)
                 return;
@@ -417,8 +409,14 @@ namespace Disguise.RenderStream
                 return;
 
             // Only run once per frame for the main render context
-            if (cameras.Any(x => x.cameraType != CameraType.Game))
+            if (m_HasUpdatedLiveTexturesThisFrame)
                 return;
+            foreach (var camera in cameras)
+            {
+                if (camera.cameraType != CameraType.Game)
+                    return;
+            }
+            m_HasUpdatedLiveTexturesThisFrame = true;
             
             var nImageParameters = spec.parameters.Count(t => t.type == RemoteParameterType.RS_PARAMETER_IMAGE);
 
@@ -431,6 +429,12 @@ namespace Disguise.RenderStream
             {
                 if (field.GetValue() is RenderTexture renderTexture)
                 {
+                    // We may be temped to use RenderTexture instead of Texture2D for the scratch textures.
+                    // RenderTextures are always stored as typeless texture resources though, which aren't supported
+                    // by CUDA interop (used by Disguise under the hood):
+                    // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__D3D11.html#group__CUDART__D3D11_1g85d07753780643584b8febab0370623b
+                    // Texture2D apply their GraphicsFormat to their texture resources.
+                    
                     var texture = Texture2DPool.Instance.Get(new Texture2DDescriptor() {
                         Width = (int)imageData[i].width,
                         Height = (int)imageData[i].height,
@@ -504,5 +508,6 @@ namespace Disguise.RenderStream
         
         SceneFields[] m_SceneFields;
         DisguiseRenderStreamSettings m_Settings;
+        bool m_HasUpdatedLiveTexturesThisFrame;
     }
 }

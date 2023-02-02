@@ -5,11 +5,15 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Disguise.RenderStream.Utils;
+using UnityEngine.PlayerLoop;
 
 namespace Disguise.RenderStream
 {
     static class NativeRenderingPlugin
     {
+        struct FinishFrameRendering { }
+        
         public enum PixelFormat
         {
             Invalid,
@@ -34,10 +38,12 @@ namespace Disguise.RenderStream
 
         public static EventDataPool<GetFrameImageData> GetFrameImageDataPool { get; } = new EventDataPool<GetFrameImageData>();
 
-        /// <summary>
-        /// Call once at the end of the frame.
-        /// </summary>
-        public static void OnFrameEnd()
+        static NativeRenderingPlugin()
+        {
+            PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, FinishFrameRendering>(OnFinishFrameRendering);
+        }
+
+        static void OnFinishFrameRendering()
         {
             GetFrameImageDataPool.OnFrameEnd();
         }

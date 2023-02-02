@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using Disguise.RenderStream.Utils;
 using UnityEngine;
+using UnityEngine.PlayerLoop;
 using UnityEngine.Pool;
 
 namespace Disguise.RenderStream
@@ -59,8 +61,10 @@ namespace Disguise.RenderStream
     ///
     /// <remarks>Lifetime doesn't grow during frames where no textures from the pool were used.</remarks>
     /// </summary>
-    public class Texture2DPool : IDisposable
+    public class Texture2DPool
     {
+        struct FinishFrameRendering { }
+        
         class Item
         {
             public readonly Texture2D Texture;
@@ -96,7 +100,7 @@ namespace Disguise.RenderStream
         }
         
         // Same delay as in RenderTexture.GetTemporary()
-        const double k_FramesToWaitBeforeReleasing = 15;
+        const int k_FramesToWaitBeforeReleasing = 15;
 
         /// <summary>
         /// Useful for tracing Disguise texture parameters.
@@ -108,18 +112,7 @@ namespace Disguise.RenderStream
 
         Texture2DPool()
         {
-            
-        }
-
-        public void Dispose()
-        {
-            foreach (var (_, item) in m_Items)
-            {
-                DestroyTexture(item.Texture);
-            }
-            
-            m_Items.Clear();
-            m_WasAccessedThisFrame = false;
+            PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, FinishFrameRendering>(OnFinishFrameRendering);
         }
 
         public Texture2D Get(Texture2DDescriptor descriptor)
@@ -142,10 +135,7 @@ namespace Disguise.RenderStream
             }
         }
 
-        /// <summary>
-        /// Call once at the end of the frame, after all texture operations have been performed.
-        /// </summary>
-        public void OnFrameEnd()
+        void OnFinishFrameRendering()
         {
             var texturesToRelease = ListPool<Texture2DDescriptor>.Get();
 
