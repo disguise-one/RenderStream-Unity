@@ -26,17 +26,17 @@ namespace Disguise.RenderStream
         
         public enum EventID
         {
-            GetFrameImage
+            InputImage
         }
 
-        public struct GetFrameImageData
+        public struct InputImageData
         {
             public IntPtr m_rs_getFrameImage;
             public Int64 m_ImageId;
             public IntPtr m_Texture;
         }
 
-        public static EventDataPool<GetFrameImageData> GetFrameImageDataPool { get; } = new EventDataPool<GetFrameImageData>();
+        public static EventDataPool<InputImageData> GetFrameImageDataPool { get; } = new EventDataPool<InputImageData>();
 
         static NativeRenderingPlugin()
         {

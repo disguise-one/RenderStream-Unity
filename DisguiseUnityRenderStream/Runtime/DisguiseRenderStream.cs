@@ -444,7 +444,7 @@ namespace Disguise.RenderStream
                     
                     var cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameter '{field.info.Name}'");
                     
-                    NativeRenderingPlugin.GetFrameImageData data = new NativeRenderingPlugin.GetFrameImageData()
+                    NativeRenderingPlugin.InputImageData data = new NativeRenderingPlugin.InputImageData()
                     {
                         m_rs_getFrameImage = PluginEntry.instance.rs_getFrameImage_ptr,
                         m_ImageId = imageData[i].imageId,
@@ -453,7 +453,7 @@ namespace Disguise.RenderStream
                     
                     cmd.IssuePluginEventAndData(
                         NativeRenderingPlugin.GetRenderEventCallback(),
-                        (int)NativeRenderingPlugin.EventID.GetFrameImage,
+                        (int)NativeRenderingPlugin.EventID.InputImage,
                         NativeRenderingPlugin.GetFrameImageDataPool.Pin(data));
                     cmd.IncrementUpdateCount(texture);
                     

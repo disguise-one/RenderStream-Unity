@@ -13,14 +13,14 @@ namespace NativeRenderingPlugin
     // Should match EventID (NativeRenderingPlugin.cs)
     enum class EventID
     {
-        GET_FRAME_IMAGE,
+        INPUT_IMAGE,
     };
 
     typedef RS_ERROR(*t_rs_getFrameImage)(int64_t imageId, SenderFrameType frameType, SenderFrameTypeData data);
 
-    // EventID::GET_FRAME_IMAGE data structure
-    // Should match GetFrameImageData (NativeRenderingPlugin.cs)
-    struct GetFrameImageData
+    // EventID::INPUT_IMAGE data structure
+    // Should match InputImageData (NativeRenderingPlugin.cs)
+    struct InputImageData
     {
         t_rs_getFrameImage m_rs_getFrameImage;  // Function pointer into Disguise DLL
         int64_t m_ImageID;
@@ -30,7 +30,7 @@ namespace NativeRenderingPlugin
         {
             if (m_Texture == nullptr)
             {
-                s_Logger->LogError("GetFrameImageData null texture pointer");
+                s_Logger->LogError("InputImageData null texture pointer");
                 return RS_ERROR::RS_ERROR_INVALID_PARAMETERS;
             }
 
@@ -52,7 +52,7 @@ namespace NativeRenderingPlugin
             }
             else
             {
-                s_Logger->LogError("GetFrameImageData unknown texture type");
+                s_Logger->LogError("InputImageData unknown texture type");
                 return RS_ERROR::RS_ERROR_INVALID_PARAMETERS;
             }
 

@@ -77,9 +77,9 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 static void UNITY_INTERFACE_API
 OnRenderEvent(int eventID, void* eventData)
 {
-    if (eventID == (int)NativeRenderingPlugin::EventID::GET_FRAME_IMAGE)
+    if (eventID == (int)NativeRenderingPlugin::EventID::INPUT_IMAGE)
     {
-        auto data = reinterpret_cast<const NativeRenderingPlugin::GetFrameImageData*>(eventData);
+        auto data = reinterpret_cast<const NativeRenderingPlugin::InputImageData*>(eventData);
         auto result = data->Execute();
         if (result != RS_ERROR_SUCCESS)
         {
