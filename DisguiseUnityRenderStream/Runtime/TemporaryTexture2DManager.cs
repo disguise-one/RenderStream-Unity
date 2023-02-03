@@ -61,7 +61,7 @@ namespace Disguise.RenderStream
     ///
     /// <remarks>Lifetime doesn't grow during frames where no textures from the pool were used.</remarks>
     /// </summary>
-    public class Texture2DPool
+    public class TemporaryTexture2DManager
     {
         struct FinishFrameRendering { }
         
@@ -87,14 +87,14 @@ namespace Disguise.RenderStream
             }
         }
         
-        static Texture2DPool s_Instance;
+        static TemporaryTexture2DManager s_Instance;
 
-        public static Texture2DPool Instance
+        public static TemporaryTexture2DManager Instance
         {
             get
             {
                 if (s_Instance == null)
-                    s_Instance = new Texture2DPool();
+                    s_Instance = new TemporaryTexture2DManager();
                 return s_Instance;
             }
         }
@@ -110,7 +110,7 @@ namespace Disguise.RenderStream
         readonly Dictionary<Texture2DDescriptor, Item> m_Items = new Dictionary<Texture2DDescriptor, Item>();
         bool m_WasAccessedThisFrame;
 
-        Texture2DPool()
+        TemporaryTexture2DManager()
         {
             PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, FinishFrameRendering>(OnFinishFrameRendering);
         }

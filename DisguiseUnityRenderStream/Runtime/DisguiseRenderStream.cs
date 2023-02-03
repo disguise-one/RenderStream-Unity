@@ -424,6 +424,7 @@ namespace Disguise.RenderStream
             if (PluginEntry.instance.GetFrameImageData(spec.hash, imageData.AsSpan()) != RS_ERROR.RS_ERROR_SUCCESS)
                 return;
 
+            CommandBuffer cmd = null;
             var i = 0;
             foreach (var field in images)
             {
@@ -435,7 +436,7 @@ namespace Disguise.RenderStream
                     // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__D3D11.html#group__CUDART__D3D11_1g85d07753780643584b8febab0370623b
                     // Texture2D apply their GraphicsFormat to their texture resources.
 
-                    var texture = Texture2DPool.Instance.Get(new Texture2DDescriptor()
+                    var texture = TemporaryTexture2DManager.Instance.Get(new Texture2DDescriptor()
                     {
                         Width = (int)imageData[i].width,
                         Height = (int)imageData[i].height,
@@ -452,7 +453,8 @@ namespace Disguise.RenderStream
 
                     if (NativeRenderingPlugin.InputImageDataPool.TryPreserve(data, out var dataPtr))
                     {
-                        var cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameter '{field.info.Name}'");
+                        if (cmd == null)
+                            cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameters");
 
                         cmd.IssuePluginEventAndData(
                             NativeRenderingPlugin.GetRenderEventCallback(),
@@ -462,10 +464,6 @@ namespace Disguise.RenderStream
 
                         cmd.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
                         cmd.IncrementUpdateCount(renderTexture);
-
-                        context.ExecuteCommandBuffer(cmd);
-
-                        CommandBufferPool.Release(cmd);
                     }
                     else
                     {
@@ -474,6 +472,12 @@ namespace Disguise.RenderStream
                 }
 
                 ++i;
+            }
+
+            if (cmd != null)
+            {
+                context.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
             }
         }
 
