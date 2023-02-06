@@ -3,6 +3,7 @@
 #include "Unity/IUnityInterface.h"
 #include "Unity/IUnityGraphics.h"
 
+#include "Events.h"
 #include "Logger.h"
 #include "DX12System.h"
 #include "DX12Texture.h"
@@ -70,6 +71,31 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
             break;
         }
     };
+}
+
+// Render event (via IssuePluginEvent) callback
+static void UNITY_INTERFACE_API
+OnRenderEvent(int eventID, void* eventData)
+{
+    if (eventID == (int)NativeRenderingPlugin::EventID::INPUT_IMAGE)
+    {
+        auto data = reinterpret_cast<const NativeRenderingPlugin::InputImageData*>(eventData);
+        auto result = data->Execute();
+        if (result != RS_ERROR_SUCCESS)
+        {
+            s_Logger->LogError("EventID::GET_FRAME_IMAGE error", result);
+        }
+    }
+    else
+    {
+        s_Logger->LogError("Unsupported event ID", eventID);
+    }
+}
+
+extern "C" UnityRenderingEventAndData UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
+GetRenderEventCallback()
+{
+    return OnRenderEvent;
 }
 
 extern "C" bool UNITY_INTERFACE_EXPORT

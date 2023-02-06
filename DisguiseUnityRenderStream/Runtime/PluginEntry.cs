@@ -147,6 +147,8 @@ namespace Disguise.RenderStream
         logger_t m_logError;
         
         GraphicsDeviceType m_GraphicsDeviceType;
+        
+        public IntPtr rs_getFrameImage_ptr;
 
         void logInfo(string message)
         {
@@ -746,6 +748,9 @@ namespace Disguise.RenderStream
             functionsLoaded &= LoadFn(ref m_logToD3, "rs_logToD3");
             functionsLoaded &= LoadFn(ref m_sendProfilingData, "rs_sendProfilingData");
             functionsLoaded &= LoadFn(ref m_setNewStatusMessage, "rs_setNewStatusMessage");
+            
+            rs_getFrameImage_ptr = GetProcAddress(d3RenderStreamDLL, "rs_getFrameImage");
+            UnityEngine.Assertions.Assert.AreNotEqual(IntPtr.Zero, rs_getFrameImage_ptr, "Failed to get rs_getFrameImage function pointer");
 
             if (!functionsLoaded)
             {

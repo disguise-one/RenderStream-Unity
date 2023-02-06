@@ -16,7 +16,7 @@ namespace Disguise.RenderStream
         bool m_newFrameData;
         DisguiseRenderStream m_RenderStream;
         
-        void Start()
+        void Awake()
         {
             m_RenderStream = DisguiseRenderStream.Instance;
             if (m_RenderStream == null || PluginEntry.instance.IsAvailable == false)

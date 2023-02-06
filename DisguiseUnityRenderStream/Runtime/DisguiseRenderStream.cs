@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using Disguise.RenderStream.Utils;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.PlayerLoop;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace Disguise.RenderStream
@@ -59,6 +61,7 @@ namespace Disguise.RenderStream
         protected virtual void Initialize()
         {
             PlayerLoopExtensions.RegisterUpdate<TimeUpdate.WaitForLastPresentationAndUpdateTime, RenderStreamUpdate>(AwaitFrame);
+            RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
         }
 
         protected DisguiseRenderStream(ManagedSchema schema)
@@ -245,8 +248,6 @@ namespace Disguise.RenderStream
             Awaiting = false;
         }
     
-        readonly List<Texture2D> m_ScratchTextures = new ();
-    
         protected void ProcessFrameData(in FrameData receivedFrameData)
         {
             if (receivedFrameData.scene >= m_Schema.scenes.Length) return;
@@ -254,14 +255,11 @@ namespace Disguise.RenderStream
             ManagedRemoteParameters spec = m_Schema.scenes[receivedFrameData.scene];
             SceneFields fields = m_SceneFields[receivedFrameData.scene];
             int nNumericalParameters = 0;
-            int nImageParameters = 0;
             int nTextParameters = 0;
             for (int i = 0; i < spec.parameters.Length; ++i)
             {
                 if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_NUMBER)
                     ++nNumericalParameters;
-                else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_IMAGE)
-                    ++nImageParameters;
                 else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_POSE || spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TRANSFORM)
                     nNumericalParameters += 16;
                 else if (spec.parameters[i].type == RemoteParameterType.RS_PARAMETER_TEXT)
@@ -269,9 +267,7 @@ namespace Disguise.RenderStream
             }
 
             using var parameters = new NativeArray<float>(nNumericalParameters, Allocator.Temp);
-            using var imageData = new NativeArray<ImageFrameData>(nImageParameters, Allocator.Temp);
-            if (PluginEntry.instance.GetFrameParameters(spec.hash, parameters.AsSpan()) == RS_ERROR.RS_ERROR_SUCCESS &&
-                PluginEntry.instance.GetFrameImageData(spec.hash, imageData.AsSpan()) == RS_ERROR.RS_ERROR_SUCCESS)
+            if (PluginEntry.instance.GetFrameParameters(spec.hash, parameters.AsSpan()) == RS_ERROR.RS_ERROR_SUCCESS)
             {
                 if (fields.numerical != null)
                 {
@@ -347,41 +343,6 @@ namespace Disguise.RenderStream
                     }
                 }
 
-                if (fields.images != null)
-                {
-                    while (m_ScratchTextures.Count < imageData.Length)
-                    {
-                        int index = m_ScratchTextures.Count;
-                        m_ScratchTextures.Add(new Texture2D((int)imageData[index].width, (int)imageData[index].height, PluginEntry.ToTextureFormat(imageData[index].format), false, true));
-                    }
-
-                    int i = 0;
-                    foreach (var field in fields.images)
-                    {
-                        if (field.GetValue() is RenderTexture renderTexture)
-                        {
-                            Texture2D texture = m_ScratchTextures[i];
-                            if (texture.width != imageData[i].width || texture.height != imageData[i].height ||
-                                texture.format != PluginEntry.ToTextureFormat(imageData[i].format))
-                            {
-                                m_ScratchTextures[i] = new Texture2D((int)imageData[i].width,
-                                    (int)imageData[i].height, PluginEntry.ToTextureFormat(imageData[i].format), false,
-                                    true);
-                                texture = m_ScratchTextures[i];
-                            }
-
-                            if (PluginEntry.instance.getFrameImage(imageData[i].imageId, ref texture) == RS_ERROR.RS_ERROR_SUCCESS)
-                            {
-                                texture.IncrementUpdateCount();
-                                Graphics.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-                                renderTexture.IncrementUpdateCount();
-                            }
-                        }
-
-                        ++i;
-                    }
-                }
-
                 if (fields.texts != null)
                 {
                     uint i = 0;
@@ -407,6 +368,7 @@ namespace Disguise.RenderStream
         {
             RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out var frameData);
             LatestFrameData = frameData;
+            m_HasUpdatedLiveTexturesThisFrame = false;
             
             if (error == RS_ERROR.RS_ERROR_QUIT)
                 Application.Quit();
@@ -430,6 +392,93 @@ namespace Disguise.RenderStream
             }
 
             DisguiseFramerateManager.Update();
+        }
+
+        // Updates the RenderTextures assigned to image parameters on the render thread to avoid stalling the main thread
+        void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            if (!HasNewFrameData)
+                return;
+            
+            if (LatestFrameData.scene >= m_Schema.scenes.Length)
+                return;
+        
+            var spec = m_Schema.scenes[LatestFrameData.scene];
+            var images = m_SceneFields[LatestFrameData.scene].images;
+            if (images == null)
+                return;
+
+            // Only run once per frame for the main render context
+            if (m_HasUpdatedLiveTexturesThisFrame)
+                return;
+            foreach (var camera in cameras)
+            {
+                if (camera.cameraType != CameraType.Game)
+                    return;
+            }
+            m_HasUpdatedLiveTexturesThisFrame = true;
+            
+            var nImageParameters = spec.parameters.Count(t => t.type == RemoteParameterType.RS_PARAMETER_IMAGE);
+
+            using var imageData = new NativeArray<ImageFrameData>(nImageParameters, Allocator.Temp);
+            if (PluginEntry.instance.GetFrameImageData(spec.hash, imageData.AsSpan()) != RS_ERROR.RS_ERROR_SUCCESS)
+                return;
+
+            CommandBuffer cmd = null;
+            var i = 0;
+            foreach (var field in images)
+            {
+                if (field.GetValue() is RenderTexture renderTexture)
+                {
+                    // We may be temped to use RenderTexture instead of Texture2D for the scratch textures.
+                    // RenderTextures are always stored as typeless texture resources though, which aren't supported
+                    // by CUDA interop (used by Disguise under the hood):
+                    // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__D3D11.html#group__CUDART__D3D11_1g85d07753780643584b8febab0370623b
+                    // Texture2D apply their GraphicsFormat to their texture resources.
+
+                    var texture = TemporaryTexture2DManager.Instance.Get(new Texture2DDescriptor()
+                    {
+                        Width = (int)imageData[i].width,
+                        Height = (int)imageData[i].height,
+                        Format = PluginEntry.ToTextureFormat(imageData[i].format),
+                        Linear = true
+                    });
+
+                    NativeRenderingPlugin.InputImageData data = new NativeRenderingPlugin.InputImageData()
+                    {
+                        m_rs_getFrameImage = PluginEntry.instance.rs_getFrameImage_ptr,
+                        m_ImageId = imageData[i].imageId,
+                        m_Texture = texture.GetNativeTexturePtr()
+                    };
+
+                    if (NativeRenderingPlugin.InputImageDataPool.TryPreserve(data, out var dataPtr))
+                    {
+                        if (cmd == null)
+                            cmd = CommandBufferPool.Get($"Receiving Disguise Image Parameters");
+
+                        cmd.IssuePluginEventAndData(
+                            NativeRenderingPlugin.GetRenderEventCallback(),
+                            (int)NativeRenderingPlugin.EventID.InputImage,
+                            dataPtr);
+                        cmd.IncrementUpdateCount(texture);
+
+                        cmd.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+                        cmd.IncrementUpdateCount(renderTexture);
+                    }
+                    else
+                    {
+                        Debug.LogError($"DisguiseRenderStream: {nameof(NativeRenderingPlugin)}.{nameof(NativeRenderingPlugin.InputImageData)} pool exceeded, skipping input texture '{field.info.Name}'");
+                    }
+                }
+
+                ++i;
+            }
+
+            if (cmd != null)
+            {
+                context.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
+            }
         }
 
         static Camera[] getTemplateCameras()
@@ -471,5 +520,6 @@ namespace Disguise.RenderStream
         
         SceneFields[] m_SceneFields;
         DisguiseRenderStreamSettings m_Settings;
+        bool m_HasUpdatedLiveTexturesThisFrame;
     }
 }
