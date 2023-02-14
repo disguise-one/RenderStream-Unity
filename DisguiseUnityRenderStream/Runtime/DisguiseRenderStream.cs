@@ -202,6 +202,9 @@ namespace Disguise.RenderStream
             // cache the template cameras prior to instantiating our instance cameras 
             Camera[] templateCameras = getTemplateCameras();
             const int cullUIOnly = ~(1 << 5);
+            
+            ScratchRTManager.Instance.Clear();
+            ScratchTexture2DManager.Instance.Clear();
 
             for (int i = 0; i < Streams.Length; ++i)
             {        
@@ -430,13 +433,13 @@ namespace Disguise.RenderStream
             {
                 if (field.GetValue() is RenderTexture renderTexture)
                 {
-                    // We may be temped to use RenderTexture instead of Texture2D for the scratch textures.
+                    // We may be temped to use RenderTexture instead of Texture2D for the shared textures.
                     // RenderTextures are always stored as typeless texture resources though, which aren't supported
                     // by CUDA interop (used by Disguise under the hood):
                     // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__D3D11.html#group__CUDART__D3D11_1g85d07753780643584b8febab0370623b
                     // Texture2D apply their GraphicsFormat to their texture resources.
 
-                    var texture = TemporaryTexture2DManager.Instance.Get(new Texture2DDescriptor()
+                    var sharedTexture = TemporaryTexture2DManager.Instance.Get(new Texture2DDescriptor()
                     {
                         Width = (int)imageData[i].width,
                         Height = (int)imageData[i].height,
@@ -448,7 +451,7 @@ namespace Disguise.RenderStream
                     {
                         m_rs_getFrameImage = PluginEntry.instance.rs_getFrameImage_ptr,
                         m_ImageId = imageData[i].imageId,
-                        m_Texture = texture.GetNativeTexturePtr()
+                        m_Texture = sharedTexture.GetNativeTexturePtr()
                     };
 
                     if (NativeRenderingPlugin.InputImageDataPool.TryPreserve(data, out var dataPtr))
@@ -460,9 +463,9 @@ namespace Disguise.RenderStream
                             NativeRenderingPlugin.GetRenderEventCallback(),
                             (int)NativeRenderingPlugin.EventID.InputImage,
                             dataPtr);
-                        cmd.IncrementUpdateCount(texture);
+                        cmd.IncrementUpdateCount(sharedTexture);
 
-                        cmd.Blit(texture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+                        cmd.Blit(sharedTexture, renderTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
                         cmd.IncrementUpdateCount(renderTexture);
                     }
                     else

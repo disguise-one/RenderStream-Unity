@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_WIN && UNITY_64
+#if UNITY_STANDALONE_WIN && UNITY_64 && !UNITY_EDITOR
 #define NATIVE_RENDERING_PLUGIN_AVAILABLE
 #endif
 
@@ -118,7 +118,7 @@ namespace Disguise.RenderStream
             return IntPtr.Zero;
         }
         
-        public static IntPtr CreateTexture(string name, int width, int height, int pixelFormat)
+        public static IntPtr CreateNativeTexture(string name, int width, int height, PixelFormat pixelFormat)
         {
             return IntPtr.Zero;
         }

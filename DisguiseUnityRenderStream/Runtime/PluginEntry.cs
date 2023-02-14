@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_WIN 
+#if UNITY_STANDALONE_WIN
 #define PLUGIN_AVAILABLE
 #endif
 
@@ -47,13 +47,13 @@ namespace Disguise.RenderStream
         {
             switch (fmt)
             {
-                case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.BGRA32;
+                case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.BGRA32;
                 case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGBFloat;
-                default: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGB32;
+                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGB32;
+                default: throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -784,6 +784,7 @@ namespace Disguise.RenderStream
                 Debug.LogError(string.Format("Failed to initialise: {0}", error));
             else
             {
+#if !UNITY_EDITOR
                 switch (GraphicsDeviceType)
                 {
                     case GraphicsDeviceType.Direct3D11:
@@ -813,6 +814,7 @@ namespace Disguise.RenderStream
                         
                         break;
                 }
+#endif
             }
 
             Debug.Log("Loaded RenderStream");

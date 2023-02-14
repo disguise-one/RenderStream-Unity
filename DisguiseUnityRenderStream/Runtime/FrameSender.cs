@@ -11,9 +11,6 @@ namespace Disguise.RenderStream
         public Rect subRegion => m_frameRegion;
         
         string m_name;
-        Texture2D m_convertedTex;
-        RenderTexture m_scratchTex;
-        int m_temporaryTexId = Shader.PropertyToID("DisguiseOutputTemporaryRT");
         int m_lastFrameCount;
 
         UInt64 m_streamHandle;
@@ -44,13 +41,9 @@ namespace Disguise.RenderStream
 
             m_frameRegion = new Rect(stream.clipping.left, stream.clipping.top, stream.clipping.right - stream.clipping.left, stream.clipping.bottom - stream.clipping.top);
 
-            m_convertedTex = DisguiseTextures.CreateTexture(m_description.m_width, m_description.m_height, m_pixelFormat, false, stream.name + " Converted Texture");
-            if (m_convertedTex == null)
-            {
-                Debug.LogError("Failed to create texture for Disguise");
-            }
-
-            m_scratchTex = new RenderTexture(m_convertedTex.width, m_convertedTex.height, m_convertedTex.graphicsFormat, GraphicsFormat.None, 1);
+            // Create textures ahead of time
+            GetSharedTexture();
+            GetScratchTexture();
             
             Debug.Log($"Created stream {m_name} with handle {m_streamHandle}");
         }
@@ -69,32 +62,18 @@ namespace Disguise.RenderStream
             
             var cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
 
-            if (m_convertedTex.width != texture.width || m_convertedTex.height != texture.height)
-            {
-                m_convertedTex = DisguiseTextures.ResizeTexture(m_convertedTex, m_description.m_width, m_description.m_height, m_pixelFormat);
-                if (m_convertedTex == null)
-                {
-                    Debug.LogError("Failed to resize texture for Disguise");
-                }
-                
-                m_scratchTex = new RenderTexture(m_convertedTex.width, m_convertedTex.height, m_convertedTex.graphicsFormat, GraphicsFormat.None, 1);
-            }
+            var scratchTexture = GetScratchTexture();
+            var sharedTexture = GetSharedTexture();
 
-            // RenderTexture unflipped = RenderTexture.GetTemporary(texture.width, texture.height, 0, texture.format);
-            // Graphics.Blit(texture, unflipped, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-            // Graphics.ConvertTexture(unflipped, m_convertedTex);
-            // RenderTexture.ReleaseTemporary(unflipped);
-            //
-            // SendFrame(m_convertedTex);
-            
             var cmd = CommandBufferPool.Get("Disguise FrameSender");
 
-            // cmd.GetTemporaryRT(m_temporaryTexId, m_convertedTex.width, m_convertedTex.height, 0, FilterMode.Point, m_convertedTex.graphicsFormat, 0);
-            cmd.Blit(texture, m_scratchTex, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-            cmd.CopyTexture(m_scratchTex, m_convertedTex);
+            // Convert to shared texture's format and flip Y
+            cmd.Blit(texture, scratchTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+            
+            // Copy to shared texture
+            cmd.CopyTexture(scratchTexture, sharedTexture);
 
-            SendFrame(cmd, m_convertedTex, cameraResponseData);
-            // cmd.ReleaseTemporaryRT(m_temporaryTexId);
+            SendFrame(cmd, sharedTexture, cameraResponseData);
                 
             context.ExecuteCommandBuffer(cmd);
             context.Submit();
@@ -130,6 +109,33 @@ namespace Disguise.RenderStream
                     (int)NativeRenderingPlugin.EventID.SendFrame,
                     dataPtr);
             }
+        }
+
+        // We may be temped to use RenderTexture instead of Texture2D for the shared textures.
+        // RenderTextures are always stored as typeless texture resources though, which aren't supported
+        // by CUDA interop (used by Disguise under the hood):
+        // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__D3D11.html#group__CUDART__D3D11_1g85d07753780643584b8febab0370623b
+        // Texture2D apply their GraphicsFormat to their texture resources.
+        Texture2D GetSharedTexture()
+        {
+            return ScratchTexture2DManager.Instance.Get(new Texture2DDescriptor
+            {
+                Width = m_description.m_width,
+                Height = m_description.m_height,
+                Format = m_pixelFormat,
+                Linear = false
+            });
+        }
+        
+        RenderTexture GetScratchTexture()
+        {
+            return ScratchRTManager.Instance.Get(new Texture2DDescriptor
+            {
+                Width = m_description.m_width,
+                Height = m_description.m_height,
+                Format = m_pixelFormat,
+                Linear = false
+            });
         }
     }
 }
