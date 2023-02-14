@@ -149,6 +149,7 @@ namespace Disguise.RenderStream
         GraphicsDeviceType m_GraphicsDeviceType;
         
         public IntPtr rs_getFrameImage_ptr;
+        public IntPtr rs_sendFrame_ptr;
 
         void logInfo(string message)
         {
@@ -750,8 +751,11 @@ namespace Disguise.RenderStream
             functionsLoaded &= LoadFn(ref m_setNewStatusMessage, "rs_setNewStatusMessage");
             
             rs_getFrameImage_ptr = GetProcAddress(d3RenderStreamDLL, "rs_getFrameImage");
-            UnityEngine.Assertions.Assert.AreNotEqual(IntPtr.Zero, rs_getFrameImage_ptr, "Failed to get rs_getFrameImage function pointer");
+            Debug.Assert(rs_getFrameImage_ptr != IntPtr.Zero, "Failed to get rs_getFrameImage function pointer");
 
+            rs_sendFrame_ptr = GetProcAddress(d3RenderStreamDLL, "rs_sendFrame");
+            Debug.Assert(rs_sendFrame_ptr != IntPtr.Zero, "Failed to get rs_sendFrame_ptr function pointer");
+            
             if (!functionsLoaded)
             {
                 Debug.LogError(string.Format("One or more functions failed load from {0}.dll", _dllName));

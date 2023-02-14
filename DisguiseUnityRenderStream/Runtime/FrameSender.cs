@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
@@ -11,8 +12,9 @@ namespace Disguise.RenderStream
         
         string m_name;
         Texture2D m_convertedTex;
+        RenderTexture m_scratchTex;
+        int m_temporaryTexId = Shader.PropertyToID("DisguiseOutputTemporaryRT");
         int m_lastFrameCount;
-        FrameResponseData m_responseData;
 
         UInt64 m_streamHandle;
         CameraCapture.CameraCaptureDescription m_description;
@@ -47,6 +49,8 @@ namespace Disguise.RenderStream
             {
                 Debug.LogError("Failed to create texture for Disguise");
             }
+
+            m_scratchTex = new RenderTexture(m_convertedTex.width, m_convertedTex.height, m_convertedTex.graphicsFormat, GraphicsFormat.None, 1);
             
             Debug.Log($"Created stream {m_name} with handle {m_streamHandle}");
         }
@@ -56,7 +60,7 @@ namespace Disguise.RenderStream
             return PluginEntry.instance.getFrameCamera(m_streamHandle, ref cameraData) == RS_ERROR.RS_ERROR_SUCCESS;
         }
 
-        public void SendFrame(FrameData frameData, CameraData cameraData, RenderTexture texture)
+        public void SendFrame(ScriptableRenderContext context, FrameData frameData, CameraData cameraData, RenderTexture texture)
         {
             if (m_lastFrameCount == Time.frameCount)
                 return;
@@ -64,11 +68,6 @@ namespace Disguise.RenderStream
             m_lastFrameCount = Time.frameCount;
             
             var cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
-            unsafe
-            {
-                var cameraResponseDataPtr = &cameraResponseData;
-                m_responseData = new FrameResponseData { cameraData = (IntPtr)cameraResponseDataPtr };
-            }
 
             if (m_convertedTex.width != texture.width || m_convertedTex.height != texture.height)
             {
@@ -77,36 +76,60 @@ namespace Disguise.RenderStream
                 {
                     Debug.LogError("Failed to resize texture for Disguise");
                 }
+                
+                m_scratchTex = new RenderTexture(m_convertedTex.width, m_convertedTex.height, m_convertedTex.graphicsFormat, GraphicsFormat.None, 1);
             }
 
-            RenderTexture unflipped = RenderTexture.GetTemporary(texture.width, texture.height, 0, texture.format);
-            Graphics.Blit(texture, unflipped, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
-            Graphics.ConvertTexture(unflipped, m_convertedTex);
-            RenderTexture.ReleaseTemporary(unflipped);
+            // RenderTexture unflipped = RenderTexture.GetTemporary(texture.width, texture.height, 0, texture.format);
+            // Graphics.Blit(texture, unflipped, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+            // Graphics.ConvertTexture(unflipped, m_convertedTex);
+            // RenderTexture.ReleaseTemporary(unflipped);
+            //
+            // SendFrame(m_convertedTex);
             
-            SendFrame(m_convertedTex);
+            var cmd = CommandBufferPool.Get("Disguise FrameSender");
+
+            // cmd.GetTemporaryRT(m_temporaryTexId, m_convertedTex.width, m_convertedTex.height, 0, FilterMode.Point, m_convertedTex.graphicsFormat, 0);
+            cmd.Blit(texture, m_scratchTex, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
+            cmd.CopyTexture(m_scratchTex, m_convertedTex);
+
+            SendFrame(cmd, m_convertedTex, cameraResponseData);
+            // cmd.ReleaseTemporaryRT(m_temporaryTexId);
+                
+            context.ExecuteCommandBuffer(cmd);
+            context.Submit();
+                
+            CommandBufferPool.Release(cmd);
         }
         
-        void SendFrame(Texture2D frame)
+        void SendFrame(CommandBuffer cmd, Texture2D frame, CameraResponseData cameraResponseData)
         {
-            SenderFrameTypeData data = new SenderFrameTypeData();
-            RS_ERROR error = RS_ERROR.RS_ERROR_SUCCESS;
-
             switch (PluginEntry.instance.GraphicsDeviceType)
             {
                 case GraphicsDeviceType.Direct3D11:
-                    data.dx11_resource = frame.GetNativeTexturePtr();
-                    error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, ref m_responseData);
+                case GraphicsDeviceType.Direct3D12:
                     break;
                 
-                case GraphicsDeviceType.Direct3D12:
-                    data.dx12_resource = frame.GetNativeTexturePtr();
-                    error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX12_TEXTURE, data, ref m_responseData);
-                    break;
+                default:
+                    Debug.LogError($"Unsupported graphics device type {PluginEntry.instance.GraphicsDeviceType}");
+                    return;
             }
             
-            if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                Debug.LogError($"Error sending frame: {error}");
+            NativeRenderingPlugin.SendFrameData sendFrameData = new NativeRenderingPlugin.SendFrameData()
+            {
+                m_rs_sendFrame = PluginEntry.instance.rs_sendFrame_ptr,
+                m_StreamHandle = m_streamHandle,
+                m_Texture = frame.GetNativeTexturePtr(),
+                m_CameraResponseData = cameraResponseData
+            };
+
+            if (NativeRenderingPlugin.SendFrameDataPool.TryPreserve(sendFrameData, out var dataPtr))
+            {
+                cmd.IssuePluginEventAndData(
+                    NativeRenderingPlugin.GetRenderEventCallback(),
+                    (int)NativeRenderingPlugin.EventID.SendFrame,
+                    dataPtr);
+            }
         }
     }
 }

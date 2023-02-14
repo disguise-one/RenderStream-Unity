@@ -27,7 +27,8 @@ namespace Disguise.RenderStream
         
         public enum EventID
         {
-            InputImage
+            InputImage,
+            SendFrame
         }
 
         public struct InputImageData
@@ -36,8 +37,17 @@ namespace Disguise.RenderStream
             public Int64 m_ImageId;
             public IntPtr m_Texture;
         }
+        
+        public struct SendFrameData
+        {
+            public IntPtr m_rs_sendFrame;
+            public ulong m_StreamHandle;
+            public IntPtr m_Texture;
+            public CameraResponseData m_CameraResponseData;
+        }
 
         public static EventDataPool<InputImageData> InputImageDataPool { get; } = new EventDataPool<InputImageData>();
+        public static EventDataPool<SendFrameData> SendFrameDataPool { get; } = new EventDataPool<SendFrameData>();
 
         static NativeRenderingPlugin()
         {
@@ -47,6 +57,7 @@ namespace Disguise.RenderStream
         static void OnFinishFrameRendering()
         {
             InputImageDataPool.OnFrameEnd();
+            SendFrameDataPool.OnFrameEnd();
         }
 
 #if NATIVE_RENDERING_PLUGIN_AVAILABLE
