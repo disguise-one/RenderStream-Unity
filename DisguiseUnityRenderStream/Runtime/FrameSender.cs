@@ -42,7 +42,7 @@ namespace Disguise.RenderStream
 
             m_frameRegion = new Rect(stream.clipping.left, stream.clipping.top, stream.clipping.right - stream.clipping.left, stream.clipping.bottom - stream.clipping.top);
 
-            m_convertedTex = DisguiseTextures.CreateTexture(m_description.m_width, m_description.m_height, m_pixelFormat, stream.name + " Converted Texture");
+            m_convertedTex = DisguiseTextures.CreateTexture(m_description.m_width, m_description.m_height, m_pixelFormat, false, stream.name + " Converted Texture");
             if (m_convertedTex == null)
             {
                 Debug.LogError("Failed to create texture for Disguise");

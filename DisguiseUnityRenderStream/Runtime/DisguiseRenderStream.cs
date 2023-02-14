@@ -440,7 +440,7 @@ namespace Disguise.RenderStream
                     {
                         Width = (int)imageData[i].width,
                         Height = (int)imageData[i].height,
-                        Format = PluginEntry.ToTextureFormat(imageData[i].format),
+                        Format = imageData[i].format,
                         Linear = true
                     });
 

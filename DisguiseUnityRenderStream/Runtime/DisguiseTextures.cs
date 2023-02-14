@@ -21,14 +21,14 @@ namespace Disguise.RenderStream
             }
         }
         
-        public static Texture2D CreateTexture(int width, int height, RSPixelFormat format, string name)
+        public static Texture2D CreateTexture(int width, int height, RSPixelFormat format, bool linear, string name)
         {
             Texture2D texture = null;
             
             switch (PluginEntry.instance.GraphicsDeviceType)
             {
                 case GraphicsDeviceType.Direct3D11:
-                    texture = new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, false);
+                    texture = new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, linear);
                     break;
                 
                 case GraphicsDeviceType.Direct3D12:
@@ -39,12 +39,12 @@ namespace Disguise.RenderStream
                     if (heapFlag == UseDX12SharedHeapFlag.RS_DX12_USE_SHARED_HEAP_FLAG)
                     {
                         var nativeTex = NativeRenderingPlugin.CreateNativeTexture(name, width, height, ToNativeRenderingPluginFormat(format));
-                        texture = Texture2D.CreateExternalTexture(width, height, PluginEntry.ToTextureFormat(format), false, false, nativeTex);
+                        texture = Texture2D.CreateExternalTexture(width, height, PluginEntry.ToTextureFormat(format), false, linear, nativeTex);
                         break;
                     }
                     else
                     {
-                        texture = new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, false);
+                        texture = new Texture2D(width, height, PluginEntry.ToTextureFormat(format), false, linear);
                         break;
                     }
             }

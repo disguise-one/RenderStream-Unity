@@ -11,7 +11,7 @@ namespace Disguise.RenderStream
     {
         public int Width;
         public int Height;
-        public TextureFormat Format;
+        public RSPixelFormat Format;
         public bool Linear;
 
         /// <summary>
@@ -182,12 +182,7 @@ namespace Disguise.RenderStream
         {
             DebugLog(DebugTrace, $"Created texture: {descriptor}");
             
-            return new Texture2D(
-                descriptor.Width,
-                descriptor.Height,
-                descriptor.Format, 
-                false,
-                descriptor.Linear);
+            return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, descriptor.Linear, null);
         }
 
         void DestroyTexture(Texture2D texture)
