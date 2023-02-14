@@ -8,7 +8,7 @@ namespace Disguise.RenderStream
     /// </summary>
     public abstract class ScratchTextureManager<TTexture>
     {
-        public bool DebugTrace { get; set; } = true;
+        public bool DebugTrace { get; set; }
         
         readonly Dictionary<Texture2DDescriptor, TTexture> m_Items = new Dictionary<Texture2DDescriptor, TTexture>();
 
