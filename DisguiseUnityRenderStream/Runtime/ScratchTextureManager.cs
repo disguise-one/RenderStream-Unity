@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
@@ -84,7 +83,7 @@ namespace Disguise.RenderStream
                 0,
                 1);
 
-            RTDesc.sRGB = false;
+            RTDesc.sRGB = !descriptor.Linear;
             RTDesc.msaaSamples = 1;
             RTDesc.autoGenerateMips = false;
             
