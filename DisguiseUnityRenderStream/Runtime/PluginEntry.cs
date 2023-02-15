@@ -780,7 +780,6 @@ namespace Disguise.RenderStream
                 Debug.LogError(string.Format("Failed to initialise: {0}", error));
             else
             {
-#if !UNITY_EDITOR
                 switch (GraphicsDeviceType)
                 {
                     case GraphicsDeviceType.Direct3D11:
@@ -810,7 +809,6 @@ namespace Disguise.RenderStream
                         
                         break;
                 }
-#endif
             }
 
             Debug.Log("Loaded RenderStream");
