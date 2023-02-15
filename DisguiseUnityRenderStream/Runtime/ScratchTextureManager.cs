@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Disguise.RenderStream
 {
@@ -8,18 +10,13 @@ namespace Disguise.RenderStream
     /// </summary>
     public abstract class ScratchTextureManager<TTexture>
     {
-        public bool DebugTrace { get; set; }
-        
         readonly Dictionary<Texture2DDescriptor, TTexture> m_Items = new Dictionary<Texture2DDescriptor, TTexture>();
 
         protected string m_Name;
         
         public void Clear()
         {
-            if (DebugTrace)
-            {
-                DebugLog($"Cleared textures");
-            }
+            DebugLog($"Cleared textures");
 
             foreach (var texture in m_Items.Values)
             {
@@ -36,10 +33,7 @@ namespace Disguise.RenderStream
                 return item;
             }
 
-            if (DebugTrace)
-            {
-                DebugLog($"Created texture: {descriptor}");
-            }
+            DebugLog($"Created texture: {descriptor}");
             
             var texture = CreateTexture(descriptor);
             m_Items.Add(descriptor, texture);
@@ -50,6 +44,7 @@ namespace Disguise.RenderStream
         
         protected abstract void DestroyTexture(TTexture texture);
         
+        [Conditional("SCRATCH_TEXTURE_MANAGER_DEBUG")]
         void DebugLog(string message)
         {
             Debug.Log($"{m_Name}: {message}");
