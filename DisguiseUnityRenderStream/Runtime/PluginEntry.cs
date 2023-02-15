@@ -24,6 +24,12 @@ namespace Disguise.RenderStream
             // not to mark type as beforefieldinit
             static Nested() { }
 
+            [RuntimeInitializeOnLoadMethod]
+            static void InitializeGraphics()
+            {
+                instance.InitializeGraphics();
+            }
+
             internal static readonly PluginEntry instance = new PluginEntry();
         }
 
@@ -782,40 +788,6 @@ namespace Disguise.RenderStream
                 Debug.LogError(string.Format("Unsupported RenderStream library, expected version {0}.{1}", RENDER_STREAM_VERSION_MAJOR, RENDER_STREAM_VERSION_MINOR));
             else if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 Debug.LogError(string.Format("Failed to initialise: {0}", error));
-            else
-            {
-#if !UNITY_EDITOR
-                switch (GraphicsDeviceType)
-                {
-                    case GraphicsDeviceType.Direct3D11:
-                        Texture2D texture = new Texture2D(1, 1);
-                        error = m_initialiseGpGpuWithDX11Resource(texture.GetNativeTexturePtr());
-                        if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                            Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
-                        break;
-                    
-                    case GraphicsDeviceType.Direct3D12:
-
-                        if (!NativeRenderingPlugin.IsInitialized())
-                            Debug.LogError("Failed to initialise NativeRenderingPlugin (for DX12 support)");
-                        
-                        var device = NativeRenderingPlugin.GetD3D12Device();
-                        var commandQueue = NativeRenderingPlugin.GetD3D12CommandQueue();
-                        
-                        if (device == IntPtr.Zero)
-                            Debug.LogError("Failed to initialise DX12 device");
-                        
-                        if (commandQueue == IntPtr.Zero)
-                            Debug.LogError(string.Format("Failed to initialise DX12 command queue"));
-                        
-                        error = m_initialiseGpGpuWithDX12DeviceAndQueue(device, commandQueue);
-                        if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                            Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
-                        
-                        break;
-                }
-#endif
-            }
 
             Debug.Log("Loaded RenderStream");
 
@@ -835,6 +807,39 @@ namespace Disguise.RenderStream
         ~PluginEntry()
         {
             free();
+        }
+
+        internal void InitializeGraphics()
+        {
+            switch (GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                    Texture2D texture = new Texture2D(1, 1);
+                    var error = m_initialiseGpGpuWithDX11Resource(texture.GetNativeTexturePtr());
+                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                        Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
+                    break;
+                    
+                case GraphicsDeviceType.Direct3D12:
+
+                    if (!NativeRenderingPlugin.IsInitialized())
+                        Debug.LogError("Failed to initialise NativeRenderingPlugin (for DX12 support)");
+                        
+                    var device = NativeRenderingPlugin.GetD3D12Device();
+                    var commandQueue = NativeRenderingPlugin.GetD3D12CommandQueue();
+                        
+                    if (device == IntPtr.Zero)
+                        Debug.LogError("Failed to initialise DX12 device");
+                        
+                    if (commandQueue == IntPtr.Zero)
+                        Debug.LogError(string.Format("Failed to initialise DX12 command queue"));
+                        
+                    error = m_initialiseGpGpuWithDX12DeviceAndQueue(device, commandQueue);
+                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                        Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
+                        
+                    break;
+            }
         }
 
         static IntPtr LoadWin32Library(string dllFilePath)

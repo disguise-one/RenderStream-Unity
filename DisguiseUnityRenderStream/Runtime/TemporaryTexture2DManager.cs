@@ -170,7 +170,11 @@ namespace Disguise.RenderStream
             if (m_Items.Remove(descriptor, out var item))
             {
                 DestroyTexture(item.Texture);
-                DebugLog(DebugTrace, $"Released texture: {descriptor}");
+
+                if (DebugTrace)
+                {
+                    DebugLog($"Released texture: {descriptor}");
+                }
             }
             else
             {
@@ -180,8 +184,11 @@ namespace Disguise.RenderStream
 
         Texture2D CreateTexture(Texture2DDescriptor descriptor)
         {
-            DebugLog(DebugTrace, $"Created texture: {descriptor}");
-            
+            if (DebugTrace)
+            {
+                DebugLog($"Created texture: {descriptor}");
+            }
+
             return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, descriptor.Linear, null);
         }
 
@@ -194,12 +201,9 @@ namespace Disguise.RenderStream
 #endif
         }
 
-        void DebugLog(bool condition, string message)
+        void DebugLog(string message)
         {
-            if (condition)
-            {
-                Debug.Log($"Texture2DPool: {message}");
-            }
+            Debug.Log($"Texture2DPool: {message}");
         }
     }
 }

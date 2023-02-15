@@ -16,8 +16,11 @@ namespace Disguise.RenderStream
         
         public void Clear()
         {
-            DebugLog(DebugTrace, $"Cleared textures");
-            
+            if (DebugTrace)
+            {
+                DebugLog($"Cleared textures");
+            }
+
             foreach (var texture in m_Items.Values)
             {
                 DestroyTexture(texture);
@@ -32,26 +35,24 @@ namespace Disguise.RenderStream
             {
                 return item;
             }
-            else
+
+            if (DebugTrace)
             {
-                DebugLog(DebugTrace, $"Created texture: {descriptor}");
-                
-                var texture = CreateTexture(descriptor);
-                m_Items.Add(descriptor, texture);
-                return texture;
+                DebugLog($"Created texture: {descriptor}");
             }
+            
+            var texture = CreateTexture(descriptor);
+            m_Items.Add(descriptor, texture);
+            return texture;
         }
 
         protected abstract TTexture CreateTexture(Texture2DDescriptor descriptor);
         
         protected abstract void DestroyTexture(TTexture texture);
         
-        void DebugLog(bool condition, string message)
+        void DebugLog(string message)
         {
-            if (condition)
-            {
-                Debug.Log($"{m_Name}: {message}");
-            }
+            Debug.Log($"{m_Name}: {message}");
         }
     }
 
