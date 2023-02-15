@@ -191,7 +191,7 @@ namespace Disguise.RenderStream
 
         void OnEnable()
         {
-#if (!HDRP) && (!URP)
+#if !(UNITY_PIPELINE_HDRP && HDRP) && !(UNITY_PIPELINE_URP && URP)
             Debug.LogError($"No supported render pipeline was found for {nameof(CameraCapture)}.");
 #endif
             

@@ -106,7 +106,7 @@ namespace Disguise.RenderStream
             var currentScene = schema.scenes[sceneIndex];
 
             var parameters = currentScene.parameters
-                .Concat(Object.FindObjectsOfType<DisguiseRemoteParameters>()
+                .Concat(Object.FindObjectsByType<DisguiseRemoteParameters>(FindObjectsSortMode.InstanceID)
                 .SelectMany(p => p.exposedParameters()));
             
             currentScene.parameters = parameters.ToArray();

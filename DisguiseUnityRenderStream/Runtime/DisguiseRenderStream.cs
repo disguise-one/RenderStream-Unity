@@ -96,7 +96,7 @@ namespace Disguise.RenderStream
                     sceneIndex = loadedScene.buildIndex;
                     break;
             }
-            DisguiseRemoteParameters[] remoteParameters = UnityEngine.Object.FindObjectsOfType(typeof(DisguiseRemoteParameters)) as DisguiseRemoteParameters[];
+            DisguiseRemoteParameters[] remoteParameters = UnityEngine.Object.FindObjectsByType(typeof(DisguiseRemoteParameters), FindObjectsSortMode.None) as DisguiseRemoteParameters[];
             ManagedRemoteParameters scene = m_Schema.scenes[sceneIndex];
             m_SceneFields[sceneIndex] = new SceneFields{ numerical = new List<ObjectField>(), images = new List<ObjectField>(), texts = new List<ObjectField>() };
             SceneFields fields = m_SceneFields[sceneIndex];

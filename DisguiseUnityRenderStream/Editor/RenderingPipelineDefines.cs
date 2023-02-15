@@ -80,9 +80,15 @@ public class RenderingPipelineDefines
     {
         var target = EditorUserBuildSettings.activeBuildTarget;
         var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(target);
-        var defines = PlayerSettings.GetScriptingDefineSymbolsForGroup(buildTargetGroup);
         
+#if UNITY_2023_1_OR_NEWER
+        var namedBuildTarget = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(buildTargetGroup);
+        PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget, out var defines);
+        return defines.ToList();
+#else
+        var defines = PlayerSettings.GetScriptingDefineSymbolsForGroup(buildTargetGroup);
         return defines.Split(';').ToList();
+#endif
     }
 
     public static void SetDefines(List<string> definesList)
@@ -91,6 +97,11 @@ public class RenderingPipelineDefines
         var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(target);
         var defines = string.Join(";", definesList.ToArray());
 
+#if UNITY_2023_1_OR_NEWER
+        var namedBuildTarget = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(buildTargetGroup);
+        PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, defines);
+#else
         PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, defines);
+#endif
     }
 }
