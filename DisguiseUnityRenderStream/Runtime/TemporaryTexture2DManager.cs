@@ -192,7 +192,7 @@ namespace Disguise.RenderStream
 #endif
         }
 
-        [Conditional("DISGUISE_LOG_TEXTURE_POOLING")]
+        [Conditional("DISGUISE_VERBOSE_LOGGING")]
         void DebugLog(string message)
         {
             Debug.Log($"Texture2DPool: {message}");
