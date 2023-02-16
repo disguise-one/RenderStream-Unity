@@ -44,7 +44,7 @@ namespace Disguise.RenderStream
         
         protected abstract void DestroyTexture(TTexture texture);
         
-        [Conditional("SCRATCH_TEXTURE_MANAGER_DEBUG")]
+        [Conditional("DISGUISE_LOG_TEXTURE_POOLING")]
         void DebugLog(string message)
         {
             Debug.Log($"{m_Name}: {message}");
