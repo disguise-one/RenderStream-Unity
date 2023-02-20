@@ -24,12 +24,12 @@
         {
             "name": "com.unity.render-pipelines.high-definition",
             "expression": "13.1.8",
-            "define": "HDRP"
+            "define": "HDRP_VERSION_SUPPORTED"
         },
         {
             "name": "com.unity.render-pipelines.universal",
             "expression": "13.1.8",
-            "define": "URP"
+            "define": "URP_VERSION_SUPPORTED"
         }
     ],
     "noEngineReferences": false
