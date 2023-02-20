@@ -461,7 +461,7 @@ namespace Disguise.RenderStream
 
                         cmd.IssuePluginEventAndData(
                             NativeRenderingPlugin.GetRenderEventCallback(),
-                            (int)NativeRenderingPlugin.EventID.InputImage,
+                            NativeRenderingPlugin.GetEventID(NativeRenderingPlugin.EventID.InputImage),
                             dataPtr);
                         cmd.IncrementUpdateCount(sharedTexture);
 
