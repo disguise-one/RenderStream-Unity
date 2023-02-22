@@ -83,7 +83,16 @@ OnRenderEvent(int eventID, void* eventData)
         auto result = data->Execute();
         if (result != RS_ERROR_SUCCESS)
         {
-            s_Logger->LogError("EventID::GET_FRAME_IMAGE error", result);
+            s_Logger->LogError("EventID::INPUT_IMAGE error", result);
+        }
+    }
+    else if (eventID == (int)NativeRenderingPlugin::EventID::SEND_FRAME)
+    {
+        auto data = reinterpret_cast<const NativeRenderingPlugin::SendFrameData*>(eventData);
+        auto result = data->Execute();
+        if (result != RS_ERROR_SUCCESS)
+        {
+            s_Logger->LogError("EventID::SEND_FRAME error", result);
         }
     }
     else

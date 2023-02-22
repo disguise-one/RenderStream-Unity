@@ -51,38 +51,11 @@ namespace Disguise.RenderStream
 
             if (texture != null)
             {
+                texture.hideFlags = HideFlags.HideAndDontSave;
                 texture.name = name;
             }
             
             return texture;
-        }
-        
-        public static Texture2D ResizeTexture(Texture2D texture, int newWidth, int newHeight, RSPixelFormat format)
-        {
-            switch (PluginEntry.instance.GraphicsDeviceType)
-            {
-                case GraphicsDeviceType.Direct3D11:
-                    texture.Reinitialize(newWidth, newHeight, texture.format, false);
-                    return texture;
-                
-                case GraphicsDeviceType.Direct3D12:
-                    RS_ERROR error = PluginEntry.instance.useDX12SharedHeapFlag(out var heapFlag);
-                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                        Debug.LogError(string.Format("Error checking shared heap flag: {0}", error));
-
-                    if (heapFlag == UseDX12SharedHeapFlag.RS_DX12_USE_SHARED_HEAP_FLAG)
-                    {
-                        var nativeTex = NativeRenderingPlugin.CreateNativeTexture(texture.name, newWidth, newHeight, ToNativeRenderingPluginFormat(format));
-                        return Texture2D.CreateExternalTexture(newWidth, newHeight, PluginEntry.ToTextureFormat(format), false, false, nativeTex);
-                    }
-                    else
-                    {
-                        texture.Reinitialize(newWidth, newHeight, texture.format, false);
-                        return texture;
-                    }
-            }
-
-            return null;
         }
     }
 }

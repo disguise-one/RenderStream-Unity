@@ -69,7 +69,7 @@ namespace Disguise.RenderStream
         {
             if (m_newFrameData)
             {
-                m_frameSender?.SendFrame(m_RenderStream.LatestFrameData, m_cameraData, capture.cameraTexture);
+                m_frameSender?.SendFrame(context, m_RenderStream.LatestFrameData, m_cameraData, capture.cameraTexture);
                 m_newFrameData = false;
             }
         }

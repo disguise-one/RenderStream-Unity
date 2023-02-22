@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_WIN 
+#if UNITY_STANDALONE_WIN
 #define PLUGIN_AVAILABLE
 #endif
 
@@ -24,6 +24,12 @@ namespace Disguise.RenderStream
             // not to mark type as beforefieldinit
             static Nested() { }
 
+            [RuntimeInitializeOnLoadMethod]
+            static void InitializeGraphics()
+            {
+                instance.InitializeGraphics();
+            }
+
             internal static readonly PluginEntry instance = new PluginEntry();
         }
 
@@ -47,13 +53,13 @@ namespace Disguise.RenderStream
         {
             switch (fmt)
             {
-                case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.BGRA32;
+                case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.BGRA32;
                 case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
                 case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGBFloat;
-                default: return RenderTextureFormat.ARGBFloat;
+                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGB32;
+                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGB32;
+                default: throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -149,6 +155,7 @@ namespace Disguise.RenderStream
         GraphicsDeviceType m_GraphicsDeviceType;
         
         public IntPtr rs_getFrameImage_ptr;
+        public IntPtr rs_sendFrame_ptr;
 
         void logInfo(string message)
         {
@@ -750,8 +757,11 @@ namespace Disguise.RenderStream
             functionsLoaded &= LoadFn(ref m_setNewStatusMessage, "rs_setNewStatusMessage");
             
             rs_getFrameImage_ptr = GetProcAddress(d3RenderStreamDLL, "rs_getFrameImage");
-            UnityEngine.Assertions.Assert.AreNotEqual(IntPtr.Zero, rs_getFrameImage_ptr, "Failed to get rs_getFrameImage function pointer");
+            Debug.Assert(rs_getFrameImage_ptr != IntPtr.Zero, "Failed to get rs_getFrameImage function pointer");
 
+            rs_sendFrame_ptr = GetProcAddress(d3RenderStreamDLL, "rs_sendFrame");
+            Debug.Assert(rs_sendFrame_ptr != IntPtr.Zero, "Failed to get rs_sendFrame_ptr function pointer");
+            
             if (!functionsLoaded)
             {
                 Debug.LogError(string.Format("One or more functions failed load from {0}.dll", _dllName));
@@ -778,38 +788,6 @@ namespace Disguise.RenderStream
                 Debug.LogError(string.Format("Unsupported RenderStream library, expected version {0}.{1}", RENDER_STREAM_VERSION_MAJOR, RENDER_STREAM_VERSION_MINOR));
             else if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 Debug.LogError(string.Format("Failed to initialise: {0}", error));
-            else
-            {
-                switch (GraphicsDeviceType)
-                {
-                    case GraphicsDeviceType.Direct3D11:
-                        Texture2D texture = new Texture2D(1, 1);
-                        error = m_initialiseGpGpuWithDX11Resource(texture.GetNativeTexturePtr());
-                        if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                            Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
-                        break;
-                    
-                    case GraphicsDeviceType.Direct3D12:
-
-                        if (!NativeRenderingPlugin.IsInitialized())
-                            Debug.LogError("Failed to initialise NativeRenderingPlugin (for DX12 support)");
-                        
-                        var device = NativeRenderingPlugin.GetD3D12Device();
-                        var commandQueue = NativeRenderingPlugin.GetD3D12CommandQueue();
-                        
-                        if (device == IntPtr.Zero)
-                            Debug.LogError("Failed to initialise DX12 device");
-                        
-                        if (commandQueue == IntPtr.Zero)
-                            Debug.LogError(string.Format("Failed to initialise DX12 command queue"));
-                        
-                        error = m_initialiseGpGpuWithDX12DeviceAndQueue(device, commandQueue);
-                        if (error != RS_ERROR.RS_ERROR_SUCCESS)
-                            Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
-                        
-                        break;
-                }
-            }
 
             Debug.Log("Loaded RenderStream");
 
@@ -829,6 +807,39 @@ namespace Disguise.RenderStream
         ~PluginEntry()
         {
             free();
+        }
+
+        internal void InitializeGraphics()
+        {
+            switch (GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                    Texture2D texture = new Texture2D(1, 1);
+                    var error = m_initialiseGpGpuWithDX11Resource(texture.GetNativeTexturePtr());
+                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                        Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
+                    break;
+                    
+                case GraphicsDeviceType.Direct3D12:
+
+                    if (!NativeRenderingPlugin.IsInitialized())
+                        Debug.LogError("Failed to initialise NativeRenderingPlugin (for DX12 support)");
+                        
+                    var device = NativeRenderingPlugin.GetD3D12Device();
+                    var commandQueue = NativeRenderingPlugin.GetD3D12CommandQueue();
+                        
+                    if (device == IntPtr.Zero)
+                        Debug.LogError("Failed to initialise DX12 device");
+                        
+                    if (commandQueue == IntPtr.Zero)
+                        Debug.LogError(string.Format("Failed to initialise DX12 command queue"));
+                        
+                    error = m_initialiseGpGpuWithDX12DeviceAndQueue(device, commandQueue);
+                    if (error != RS_ERROR.RS_ERROR_SUCCESS)
+                        Debug.LogError(string.Format("Failed to initialise GPU interop: {0}", error));
+                        
+                    break;
+            }
         }
 
         static IntPtr LoadWin32Library(string dllFilePath)

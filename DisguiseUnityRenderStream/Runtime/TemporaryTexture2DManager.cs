@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Disguise.RenderStream.Utils;
 using UnityEngine;
 using UnityEngine.PlayerLoop;
 using UnityEngine.Pool;
+using Debug = UnityEngine.Debug;
 
 namespace Disguise.RenderStream
 {
@@ -102,11 +104,6 @@ namespace Disguise.RenderStream
         // Same delay as in RenderTexture.GetTemporary()
         const int k_FramesToWaitBeforeReleasing = 15;
 
-        /// <summary>
-        /// Useful for tracing Disguise texture parameters.
-        /// </summary>
-        public bool DebugTrace { get; set; }
-
         readonly Dictionary<Texture2DDescriptor, Item> m_Items = new Dictionary<Texture2DDescriptor, Item>();
         bool m_WasAccessedThisFrame;
 
@@ -170,7 +167,8 @@ namespace Disguise.RenderStream
             if (m_Items.Remove(descriptor, out var item))
             {
                 DestroyTexture(item.Texture);
-                DebugLog(DebugTrace, $"Released texture: {descriptor}");
+
+                DebugLog($"Released texture: {descriptor}");
             }
             else
             {
@@ -180,8 +178,8 @@ namespace Disguise.RenderStream
 
         Texture2D CreateTexture(Texture2DDescriptor descriptor)
         {
-            DebugLog(DebugTrace, $"Created texture: {descriptor}");
-            
+            DebugLog($"Created texture: {descriptor}");
+
             return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, descriptor.Linear, null);
         }
 
@@ -194,12 +192,10 @@ namespace Disguise.RenderStream
 #endif
         }
 
-        void DebugLog(bool condition, string message)
+        [Conditional("DISGUISE_VERBOSE_LOGGING")]
+        void DebugLog(string message)
         {
-            if (condition)
-            {
-                Debug.Log($"Texture2DPool: {message}");
-            }
+            Debug.Log($"Texture2DPool: {message}");
         }
     }
 }
