@@ -15,6 +15,7 @@ namespace NativeRenderingPlugin
     {
         INPUT_IMAGE,
         SEND_FRAME,
+        MAX
     };
 
     typedef RS_ERROR(*t_rs_getFrameImage)(int64_t imageId, SenderFrameType frameType, SenderFrameTypeData data);

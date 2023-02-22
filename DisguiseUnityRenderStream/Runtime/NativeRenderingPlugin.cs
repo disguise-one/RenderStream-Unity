@@ -49,9 +49,17 @@ namespace Disguise.RenderStream
         public static EventDataPool<InputImageData> InputImageDataPool { get; } = new EventDataPool<InputImageData>();
         public static EventDataPool<SendFrameData> SendFrameDataPool { get; } = new EventDataPool<SendFrameData>();
 
+        static int? s_BaseEventID;
+
         static NativeRenderingPlugin()
         {
             PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, FinishFrameRendering>(OnFinishFrameRendering);
+        }
+        
+        public static int GetEventID(EventID evt)
+        {
+            s_BaseEventID ??= GetBaseEventID();
+            return (int)evt + s_BaseEventID.Value;
         }
 
         static void OnFinishFrameRendering()
@@ -69,6 +77,11 @@ namespace Disguise.RenderStream
         public static bool IsInitialized()
         {
             return NativeRenderingPluginNative.IsInitialized();
+        }
+        
+        static int GetBaseEventID()
+        {
+            return NativeRenderingPluginNative.GetBaseEventID();
         }
         
         public static IntPtr GetD3D12Device()
@@ -107,6 +120,11 @@ namespace Disguise.RenderStream
         {
             return false;
         }
+
+        static int GetBaseEventID()
+        {
+            return 0;
+        }
         
         public static IntPtr GetD3D12Device()
         {
@@ -135,6 +153,9 @@ namespace Disguise.RenderStream
         
         [DllImport(PluginName)]
         public static extern bool IsInitialized();
+        
+        [DllImport(PluginName)]
+        public static extern int GetBaseEventID();
         
         [DllImport(PluginName)]
         public static extern IntPtr GetD3D12Device();

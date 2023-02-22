@@ -105,7 +105,7 @@ namespace Disguise.RenderStream
             {
                 cmd.IssuePluginEventAndData(
                     NativeRenderingPlugin.GetRenderEventCallback(),
-                    (int)NativeRenderingPlugin.EventID.SendFrame,
+                    NativeRenderingPlugin.GetEventID(NativeRenderingPlugin.EventID.SendFrame),
                     dataPtr);
             }
         }

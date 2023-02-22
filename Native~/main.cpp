@@ -12,6 +12,7 @@ using namespace NativeRenderingPlugin;
 
 static IUnityInterfaces* s_UnityInterfaces = nullptr;
 static IUnityGraphics* s_Graphics = nullptr;
+static int s_BaseEventId = 0;
 
 // Unity plugin load event
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
@@ -24,6 +25,8 @@ UnityPluginLoad(IUnityInterfaces * unityInterfaces)
     if (s_Graphics != nullptr)
     {
         s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
+
+        s_BaseEventId = s_Graphics->ReserveEventIDRange((int)EventID::MAX);
     }
 
     // Run OnGraphicsDeviceEvent(initialize) manually on plugin load
@@ -77,6 +80,8 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 static void UNITY_INTERFACE_API
 OnRenderEvent(int eventID, void* eventData)
 {
+    eventID = eventID - s_BaseEventId;
+
     if (eventID == (int)NativeRenderingPlugin::EventID::INPUT_IMAGE)
     {
         auto data = reinterpret_cast<const NativeRenderingPlugin::InputImageData*>(eventData);
@@ -111,6 +116,12 @@ extern "C" bool UNITY_INTERFACE_EXPORT
 IsInitialized()
 {
     return s_DX12System != nullptr && s_DX12System->IsInitialized();
+}
+
+extern "C" int UNITY_INTERFACE_EXPORT
+GetBaseEventID()
+{
+    return s_BaseEventId;
 }
 
 extern "C" UNITY_INTERFACE_EXPORT void*
