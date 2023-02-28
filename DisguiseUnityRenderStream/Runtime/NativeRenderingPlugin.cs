@@ -1,4 +1,4 @@
-#if UNITY_STANDALONE_WIN && UNITY_64 && !UNITY_EDITOR
+#if UNITY_STANDALONE_WIN && UNITY_64
 #define NATIVE_RENDERING_PLUGIN_AVAILABLE
 #endif
 
@@ -168,7 +168,7 @@ namespace Disguise.RenderStream
     }
 #endif
     
-    class EventDataPool<TData> : IDisposable where TData : unmanaged
+    class EventDataPool<TData> : AutoDisposable where TData : unmanaged
     {
         class Record
         {
@@ -216,7 +216,7 @@ namespace Disguise.RenderStream
             }
         }
         
-        public void Dispose()
+        public override void Dispose()
         {
             m_Data.Dispose();
         }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using Disguise.RenderStream.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -8,11 +9,16 @@ namespace Disguise.RenderStream
     /// <summary>
     /// A simpler version of <see cref="Disguise.RenderStream.TemporaryTexture2DManager"/> that doesn't need to manage texture lifetime.
     /// </summary>
-    public abstract class ScratchTextureManager<TTexture>
+    public abstract class ScratchTextureManager<TTexture> : AutoDisposable
     {
         readonly Dictionary<Texture2DDescriptor, TTexture> m_Items = new Dictionary<Texture2DDescriptor, TTexture>();
 
         protected string m_Name;
+
+        public override void Dispose()
+        {
+            Clear();
+        }
         
         public void Clear()
         {
