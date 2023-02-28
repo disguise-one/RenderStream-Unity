@@ -7,7 +7,7 @@ namespace Disguise.RenderStream
     /// Attaches to this <see cref="GameObject"/>'s <see cref="UnityEngine.EventSystems.BaseInputModule"/>
     /// to convert the mouse coordinates to the specified <see cref="Presenter"/>.
     /// </summary>
-    class UGUIInputForPresenter : BaseInput
+    public class UGUIInputForPresenter : BaseInput
     {
         BaseInputModule m_InputModule;
 

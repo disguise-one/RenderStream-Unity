@@ -16,7 +16,7 @@ namespace Disguise.RenderStream
     /// </summary>
     [ExecuteAlways]
     [RequireComponent(typeof(Camera))]
-    class CameraCapture : MonoBehaviour
+    public class CameraCapture : MonoBehaviour
     {
         [Serializable]
         public struct CameraCaptureDescription : IEquatable<CameraCaptureDescription>

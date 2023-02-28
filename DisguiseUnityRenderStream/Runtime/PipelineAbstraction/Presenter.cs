@@ -9,7 +9,7 @@ namespace Disguise.RenderStream
     /// <summary>
     /// Strategy calculations for the <see cref="Blitter"/> API.
     /// </summary>
-    static class PresenterStrategy
+    public static class PresenterStrategy
     {
         /// <summary>
         /// A strategy to handle the size and aspect ratio differences between two surfaces.
@@ -161,7 +161,7 @@ namespace Disguise.RenderStream
     /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
     /// </summary>
     [ExecuteAlways]
-    class Presenter : MonoBehaviour
+    public class Presenter : MonoBehaviour
     {
         const string k_profilerTag = "Disguise Presenter";
         const string k_profilerClearTag = "Disguise Presenter Clear";
