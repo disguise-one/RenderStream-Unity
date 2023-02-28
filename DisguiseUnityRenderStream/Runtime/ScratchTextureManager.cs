@@ -9,7 +9,7 @@ namespace Disguise.RenderStream
     /// <summary>
     /// A simpler version of <see cref="Disguise.RenderStream.TemporaryTexture2DManager"/> that doesn't need to manage texture lifetime.
     /// </summary>
-    public abstract class ScratchTextureManager<TTexture> : AutoDisposable
+    abstract class ScratchTextureManager<TTexture> : AutoDisposable
     {
         readonly Dictionary<Texture2DDescriptor, TTexture> m_Items = new Dictionary<Texture2DDescriptor, TTexture>();
 
@@ -57,7 +57,7 @@ namespace Disguise.RenderStream
         }
     }
 
-    public class ScratchRTManager : ScratchTextureManager<RenderTexture>
+    class ScratchRTManager : ScratchTextureManager<RenderTexture>
     {
         static ScratchRTManager s_Instance;
         
@@ -98,7 +98,7 @@ namespace Disguise.RenderStream
         }
     }
     
-    public class ScratchTexture2DManager : ScratchTextureManager<Texture2D>
+    class ScratchTexture2DManager : ScratchTextureManager<Texture2D>
     {
         static ScratchTexture2DManager s_Instance;
         

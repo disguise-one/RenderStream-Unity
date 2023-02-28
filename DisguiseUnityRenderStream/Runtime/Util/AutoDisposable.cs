@@ -1,14 +1,16 @@
 using System;
-using UnityEngine;
+
 #if UNITY_EDITOR
 using UnityEditor;
+#else
+using UnityEngine;
 #endif
 
 namespace Disguise.RenderStream.Utils
 {
-    public class AutoDisposable : IDisposable
+    abstract class AutoDisposable : IDisposable
     {
-        public AutoDisposable()
+        protected AutoDisposable()
         {
             Register();
         }
