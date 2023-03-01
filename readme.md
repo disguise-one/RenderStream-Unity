@@ -9,10 +9,7 @@ A **Demo Unity Project** can be found on the [disguise Resources page](https://d
 ## Importing the RenderStream Unity Plugin
 
 *  Copy/Import the top-level **DisguiseUnityRenderStream** folder to your Unity Project's **Assets** folder.
-*  If you get an error RegistryKey/Registry is not part of namespace Microsoft.Win32 go to File > Build Settings > Player Settings... > Other Settings:
-    *  If available **change Api Compatibility level to .NET 4.x.**
-    *  Else, change Scripting runtime version to .NET 3.5 equivalent.
-    *  If there is an error about unsafe code tick allow 'unsafe' code, this is project wide and should not be done unless unity ignores the asmdef for this plugin.
+*  If there is an error about unsafe code tick allow 'unsafe' code, this is project wide and should not be done unless unity ignores the asmdef for this plugin.
  
 ## Using the RenderStream Unity Plugin
 
