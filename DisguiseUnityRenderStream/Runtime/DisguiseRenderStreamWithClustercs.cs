@@ -181,7 +181,7 @@ namespace Disguise.RenderStream
                 clusterParams.ClusterLogicSpecified = true;
 
                 // Arbitrarily assign Node 0 as the emitter
-                clusterParams.EmitterSpecified = clusterParams.NodeID == 0;
+                clusterParams.Role = clusterParams.NodeID == 0 ? NodeRole.Emitter : NodeRole.Repeater;
             }
             catch (Exception e)
             {
