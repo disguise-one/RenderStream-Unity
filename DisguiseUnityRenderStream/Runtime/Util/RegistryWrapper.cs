@@ -4,7 +4,11 @@ using System.Text;
 
 namespace Disguise.RenderStream.Utils
 {
-    // https://www.pinvoke.net/default.aspx/advapi32/regopenkeyex.html
+    /// <summary>
+    /// This is a P/Invoke alternative to the Microsoft.Win32.Registry API which isn't supported across all of our .NET standards.
+    /// 
+    /// https://www.pinvoke.net/default.aspx/advapi32/regopenkeyex.html was used as reference.
+    /// </summary>
     static class RegistryWrapper
     {
         public static UIntPtr HKEY_LOCAL_MACHINE = new UIntPtr(0x80000002u);
