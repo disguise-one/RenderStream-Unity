@@ -42,7 +42,7 @@ namespace Disguise.RenderStream.Utils
         public void SetValue<T>(T value)
         {
 #if ENABLE_IL2CPP
-            return SetValue((object)value);
+            SetValue((object)value);
 #else
             var setter = DynamicSetterCache<T>.GetSetter(info);
             setter.Invoke(target, value);

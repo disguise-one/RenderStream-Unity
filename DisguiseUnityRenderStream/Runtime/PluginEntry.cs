@@ -148,21 +148,22 @@ namespace Disguise.RenderStream
         pLogToD3 m_logToD3 = null;
         pSendProfilingData m_sendProfilingData = null;
         pSetNewStatusMessage m_setNewStatusMessage = null;
-
-        logger_t m_logInfo;
-        logger_t m_logError;
         
         GraphicsDeviceType m_GraphicsDeviceType;
         
         public IntPtr rs_getFrameImage_ptr;
         public IntPtr rs_sendFrame_ptr;
 
-        void logInfo(string message)
+        // Static wrapper to support delegate marshalling to native in IL2CPP
+        [AOT.MonoPInvokeCallback(typeof(logger_t))]
+        static void logInfo(string message)
         {
             Debug.Log(message);
         }
 
-        void logError(string message)
+        // Static wrapper to support delegate marshalling to native in IL2CPP
+        [AOT.MonoPInvokeCallback(typeof(logger_t))]
+        static void logError(string message)
         {
             Debug.LogError(message);
         }
@@ -773,13 +774,10 @@ namespace Disguise.RenderStream
             // exception consistentency is questionable, often the same exception can be seen at the same point in time
             // however periodically a minor difference may occur where the exception is not thrown where expected or even at all
 
-            m_logInfo = logInfo;
-            m_logError = logError;
-
             if (m_registerLoggingFunc != null)
-                m_registerLoggingFunc(m_logInfo);
+                m_registerLoggingFunc(logInfo);
             if (m_registerErrorLoggingFunc != null)
-                m_registerErrorLoggingFunc(m_logError);
+                m_registerErrorLoggingFunc(logError);
 
             if (m_logToD3 != null)
                 Application.logMessageReceivedThreaded += logToD3;

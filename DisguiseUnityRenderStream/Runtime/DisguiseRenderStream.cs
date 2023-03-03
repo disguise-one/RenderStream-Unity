@@ -35,7 +35,7 @@ namespace Disguise.RenderStream
                 return;
             }
 
-            string pathToBuiltProject = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            string pathToBuiltProject = ApplicationPath.GetExecutablePath();;
             RS_ERROR error = PluginEntry.instance.LoadSchema(pathToBuiltProject, out var schema);
             if (error != RS_ERROR.RS_ERROR_SUCCESS)
             {
