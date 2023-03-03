@@ -23,26 +23,30 @@ namespace Disguise.RenderStream.Utils
         {
             value = null;
             
-            if (Native.RegOpenKeyEx(rootKey, keyPath, 0, Native.KEY_READ, out var hKey) == 0)
+            if (Native.RegOpenKeyEx(rootKey, keyPath, 0, Native.KEY_READ, out var hKey) == Native.ERROR_SUCCESS)
             {
-                uint size = 1024;
-                StringBuilder keyBuffer = new StringBuilder((int)size);
-
-                if (Native.RegQueryValueEx(hKey, valueName, IntPtr.Zero, out var type, keyBuffer, ref size) == 0)
+                try
                 {
-                    Native.RegCloseKey(hKey);
+                    uint size = 1024;
+                    StringBuilder keyBuffer = new StringBuilder((int)size);
 
-                    if (type == Native.REG_SZ)
+                    if (Native.RegQueryValueEx(hKey, valueName, IntPtr.Zero, out var type, keyBuffer, ref size) == Native.ERROR_SUCCESS)
                     {
-                        value = keyBuffer.ToString();
-                        return ReadRegKeyResult.Success;
+                        if (type == Native.REG_SZ)
+                        {
+                            value = keyBuffer.ToString();
+                            return ReadRegKeyResult.Success;
+                        }
+
+                        return ReadRegKeyResult.TypeNotSupported;
                     }
 
-                    return ReadRegKeyResult.TypeNotSupported;
+                    return ReadRegKeyResult.QueryValueFailed;
                 }
-                
-                Native.RegCloseKey(hKey);
-                return ReadRegKeyResult.QueryValueFailed;
+                finally
+                {
+                    Native.RegCloseKey(hKey);
+                }
             }
 
             return ReadRegKeyResult.OpenFailed;
@@ -51,6 +55,8 @@ namespace Disguise.RenderStream.Utils
         static class Native
         {
             const string advapidll = "advapi32.dll";
+
+            public const int ERROR_SUCCESS = 0x0;
             
             public const int KEY_READ = 0x20019;
 
@@ -66,7 +72,7 @@ namespace Disguise.RenderStream.Utils
                 out UIntPtr hkResult);
             
             [DllImport(advapidll, CharSet = CharSet.Auto, SetLastError = true)]
-            public static extern uint RegQueryValueEx(
+            public static extern int RegQueryValueEx(
                 UIntPtr hKey,
                 string lpValueName,
                 IntPtr lpReserved,
