@@ -55,7 +55,7 @@ namespace Disguise.RenderStream
         {
             if (m_Presenter != null && m_Presenter.IsValid)
             {
-                var scaleBias = m_Presenter.GetScaleBias(false);
+                var scaleBias = m_Presenter.GetScaleBias(true);
                 var uiPosOnScreen = new Vector2(scaleBias.z, scaleBias.w) * m_Presenter.targetSize;
                 var uiSizeOnScreen = new Vector2(scaleBias.x, scaleBias.y) * m_Presenter.targetSize;
                 

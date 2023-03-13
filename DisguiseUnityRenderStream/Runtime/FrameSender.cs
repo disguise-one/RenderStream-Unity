@@ -6,14 +6,14 @@ namespace Disguise.RenderStream
 {
     public class FrameSender
     {
-        internal CameraCapture.CameraCaptureDescription description => m_description;
+        internal CameraCaptureDescription description => m_description;
         public Rect subRegion => m_frameRegion;
         
         string m_name;
         int m_lastFrameCount;
 
         UInt64 m_streamHandle;
-        CameraCapture.CameraCaptureDescription m_description;
+        CameraCaptureDescription m_description;
         RSPixelFormat m_pixelFormat;
         Rect m_frameRegion;
         
@@ -28,11 +28,13 @@ namespace Disguise.RenderStream
             m_streamHandle = stream.handle;
             m_pixelFormat = stream.format;
 
-            m_description = new CameraCapture.CameraCaptureDescription()
+            m_description = new CameraCaptureDescription()
             {
+                m_colorSpace = ColorSpace.sRGB,
+                m_autoFlipY = true,
                 m_width = (int)stream.width,
                 m_height = (int)stream.height,
-                m_colorFormat = PluginEntry.ToRenderTextureFormat(m_pixelFormat),
+                m_colorFormat = PluginEntry.ToGraphicsFormat(m_pixelFormat, true),
                 m_msaaSamples = 1,
                 m_depthBufferBits = 24,
                 m_copyDepth = false
@@ -40,9 +42,8 @@ namespace Disguise.RenderStream
 
             m_frameRegion = new Rect(stream.clipping.left, stream.clipping.top, stream.clipping.right - stream.clipping.left, stream.clipping.bottom - stream.clipping.top);
 
-            // Create textures ahead of time
+            // Create texture ahead of time
             GetSharedTexture();
-            GetScratchTexture();
             
             Debug.Log($"Created stream {m_name} with handle {m_streamHandle}");
         }
@@ -61,16 +62,12 @@ namespace Disguise.RenderStream
             
             var cameraResponseData = new CameraResponseData { tTracked = frameData.tTracked, camera = cameraData };
 
-            var scratchTexture = GetScratchTexture();
             var sharedTexture = GetSharedTexture();
 
             var cmd = CommandBufferPool.Get("Disguise FrameSender");
-
-            // Convert to shared texture's format and flip Y
-            cmd.Blit(texture, scratchTexture, new Vector2(1.0f, -1.0f), new Vector2(0.0f, 1.0f));
             
             // Copy to shared texture
-            cmd.CopyTexture(scratchTexture, sharedTexture);
+            cmd.CopyTexture(texture, sharedTexture);
 
             SendFrame(cmd, sharedTexture, cameraResponseData);
                 
@@ -122,18 +119,7 @@ namespace Disguise.RenderStream
                 Width = m_description.m_width,
                 Height = m_description.m_height,
                 Format = m_pixelFormat,
-                Linear = false
-            });
-        }
-        
-        RenderTexture GetScratchTexture()
-        {
-            return ScratchRTManager.Instance.Get(new Texture2DDescriptor
-            {
-                Width = m_description.m_width,
-                Height = m_description.m_height,
-                Format = m_pixelFormat,
-                Linear = false
+                Linear = m_description.m_colorSpace == ColorSpace.Linear
             });
         }
     }

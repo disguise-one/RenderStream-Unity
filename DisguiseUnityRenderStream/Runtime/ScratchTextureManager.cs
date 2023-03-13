@@ -50,47 +50,6 @@ namespace Disguise.RenderStream
             Debug.Log($"{m_Name}: {message}");
         }
     }
-
-    public class ScratchRTManager : ScratchTextureManager<RenderTexture>
-    {
-        static ScratchRTManager s_Instance;
-        
-        public static ScratchRTManager Instance
-        {
-            get
-            {
-                if (s_Instance == null)
-                    s_Instance = new ScratchRTManager();
-                return s_Instance;
-            }
-        }
-
-        ScratchRTManager()
-        {
-            m_Name = nameof(ScratchRTManager);
-        }
-        
-        protected override RenderTexture CreateTexture(Texture2DDescriptor descriptor)
-        {
-            RenderTextureDescriptor RTDesc = new RenderTextureDescriptor(
-                descriptor.Width,
-                descriptor.Height,
-                PluginEntry.ToRenderTextureFormat(descriptor.Format),
-                0,
-                1);
-
-            RTDesc.sRGB = !descriptor.Linear;
-            RTDesc.msaaSamples = 1;
-            RTDesc.autoGenerateMips = false;
-            
-            return new RenderTexture(RTDesc);
-        }
-        
-        protected override void DestroyTexture(RenderTexture texture)
-        {
-            texture.Release();
-        }
-    }
     
     public class ScratchTexture2DManager : ScratchTextureManager<Texture2D>
     {
@@ -113,7 +72,7 @@ namespace Disguise.RenderStream
         
         protected override Texture2D CreateTexture(Texture2DDescriptor descriptor)
         {
-            return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, descriptor.Linear, null);
+            return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, !descriptor.Linear, null);
         }
         
         protected override void DestroyTexture(Texture2D texture)

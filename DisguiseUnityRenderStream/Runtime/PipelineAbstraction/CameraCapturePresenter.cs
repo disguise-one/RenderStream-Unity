@@ -11,6 +11,10 @@ namespace Disguise.RenderStream
     /// </para>
     ///
     /// <para>
+    /// <see cref="Presenter.autoFlipY"/> is disabled when <see cref="CameraCaptureDescription.m_autoFlipY"/> is enabled to avoid flipping twice.
+    /// </para>
+    ///
+    /// <para>
     /// <see cref="PresenterInput"/> is responsible for adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/>
     /// mouse coordinates to account for the blit.
     /// </para>
@@ -42,7 +46,15 @@ namespace Disguise.RenderStream
         protected override void Update()
         {
             base.Update();
-            
+
+            if (m_cameraCapture.description.m_autoFlipY && autoFlipY)
+            {
+                autoFlipY = false;
+                
+                Debug.LogWarning($"Disabled {nameof(CameraCapturePresenter)}.{nameof(CameraCapturePresenter.autoFlipY)}" +
+                                 $"because it's already enabled in the sibling {nameof(CameraCapture)} component");
+            }
+
             switch (m_mode)
             {
                 case Mode.Color:

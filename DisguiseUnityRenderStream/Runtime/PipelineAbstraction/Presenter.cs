@@ -173,14 +173,29 @@ namespace Disguise.RenderStream
         PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.Fill;
 
         [SerializeField]
+        bool m_autoFlipY = true;
+        
+        [SerializeField]
         bool m_clearScreen;
         
         Backend m_backEnd;
 
+        /// <summary>
+        /// Describes how to handle the size and aspect ratio differences between the <see cref="source"/> and the screen.
+        /// </summary>
         public PresenterStrategy.Strategy strategy
         {
             get => m_strategy;
             set => m_strategy = value;
+        }
+        
+        /// <summary>
+        /// On platforms such as DX12
+        /// </summary>
+        public bool autoFlipY
+        {
+            get => m_autoFlipY;
+            set => m_autoFlipY = value;
         }
 
         /// <summary>
@@ -235,17 +250,17 @@ namespace Disguise.RenderStream
         /// <summary>
         /// Get the coordinates that would be passed to the <see cref="Blitter"/> API.
         /// </summary>
-        /// <param name="flipY"></param>
+        /// <param name="skipAutoFlip">
+        /// When true, the return value isn't adjusted for the graphics API's UV representation.
+        /// This is useful for UI which only needs a CPU representation of the bounds.
+        /// </param>
         /// <returns>A scale + bias vector</returns>
-        public Vector4 GetScaleBias(bool flipY)
+        public Vector4 GetScaleBias(bool skipAutoFlip)
         {
             var scaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
 
-            if (flipY)
-            {
-                scaleBias.y = -scaleBias.y;
-                scaleBias.w = 1f - scaleBias.w;
-            }
+            if (autoFlipY && !skipAutoFlip && SystemInfo.graphicsUVStartsAtTop)
+                scaleBias = BlitExtended.FlipYScaleBias(scaleBias);
 
             return scaleBias;
         }
@@ -256,7 +271,7 @@ namespace Disguise.RenderStream
             CoreUtils.SetRenderTarget(cmd, screen);
             
             var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
-            var dstScaleBias = GetScaleBias(true); // Flip Y for screen
+            var dstScaleBias = GetScaleBias(false);
             
             Blitter.BlitQuad(cmd, m_source, srcScaleBias, dstScaleBias, 0, true);
         }
