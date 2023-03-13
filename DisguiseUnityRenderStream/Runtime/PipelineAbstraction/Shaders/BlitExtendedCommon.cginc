@@ -9,10 +9,7 @@
 
 SamplerState sampler_LinearClamp;
 
-// Not using TEXTURE_2D_X to avoid pulling dependencies outside of core SRP.
-// So this shader isn't XR-compatible.
-
-TEXTURE2D(_BlitTexture);
+TEXTURE2D_X(_BlitTexture);
 
 uniform float4 _BlitScaleBias;
 
@@ -47,7 +44,7 @@ Varyings Vert(Attributes input)
 float4 FragBlit(Varyings input)
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    return SAMPLE_TEXTURE2D(_BlitTexture, sampler_LinearClamp, input.texcoord.xy);
+    return SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, input.texcoord.xy);
 }
 
 float4 FragNoConversion(Varyings input) : SV_Target

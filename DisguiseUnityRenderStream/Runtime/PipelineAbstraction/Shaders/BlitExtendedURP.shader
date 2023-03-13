@@ -1,20 +1,9 @@
-Shader "Hidden/Disguise/RenderStream/DepthCopyURP"
+Shader "Hidden/Disguise/RenderStream/BlitExtendedHDRP"
 {
     HLSLINCLUDE
-        #define REQUIRE_DEPTH_TEXTURE
-
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-
-        // Define for DepthCopyNodes.cginc
-        #define GetDepthForDisguise(uv) SampleSceneDepth(uv)
-
-        // Defines depth operations
-        #include "DepthCopyNodes.cginc"
-
-        // Contains vertex and fragment functions
-        #include "DepthCopyCommon.cginc"
+        #include "BlitExtendedCommon.cginc"
     ENDHLSL
 
     SubShader
@@ -29,38 +18,39 @@ Shader "Hidden/Disguise/RenderStream/DepthCopyURP"
             "RenderPipeline" = "UniversalRenderPipeline"
         }
 
-        // Raw
+        // No color space conversion
         Pass
         {
             Cull Off ZTest Always ZWrite Off Blend Off
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragRaw
+                #pragma fragment FragNoConversion
             ENDHLSL
         }
         
-        // Eye
+        // Linear to sRGB
         Pass
         {
             Cull Off ZTest Always ZWrite Off Blend Off
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragEye
+                #pragma fragment FragBlitLinearToSRGB
             ENDHLSL
         }
         
-        // Linear01
+        // sRGB to Linear
         Pass
         {
             Cull Off ZTest Always ZWrite Off Blend Off
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragLinear01
+                #pragma fragment FragBlitSRGBToLinear
             ENDHLSL
         }
     }
+    
     Fallback Off
 }
