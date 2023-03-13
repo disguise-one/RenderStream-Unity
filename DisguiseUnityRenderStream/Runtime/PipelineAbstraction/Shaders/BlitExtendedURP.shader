@@ -1,8 +1,6 @@
 Shader "Hidden/Disguise/RenderStream/BlitExtendedHDRP"
 {
     HLSLINCLUDE
-        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "BlitExtendedCommon.cginc"
     ENDHLSL
 
