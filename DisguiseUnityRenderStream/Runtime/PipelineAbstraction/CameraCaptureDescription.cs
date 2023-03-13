@@ -13,6 +13,9 @@ namespace Disguise.RenderStream
         sRGB    // sRGB color primaries + sRGB transfer function
     }
     
+    /// <summary>
+    /// Holds the configuration of a <see cref="CameraCapture"/> component.
+    /// </summary>
     [Serializable]
     struct CameraCaptureDescription : IEquatable<CameraCaptureDescription>
     {
@@ -51,6 +54,10 @@ namespace Disguise.RenderStream
         /// The height of the camera render target in pixels.
         /// </summary>
         public int m_height;
+        
+        /// <summary>
+        /// The format of the texture that holds the camera color output.
+        /// </summary>
         public GraphicsFormat m_colorFormat;
         
         /// <summary>
@@ -61,23 +68,27 @@ namespace Disguise.RenderStream
         
         /// <summary>
         /// TODO doc
-        /// <remarks>TODO doc</remarks>
+        /// <remarks>
+        /// This can define the precision of the camera's depth attachment during the rendering of the scene.
+        /// It doesn't necessarily need to be the same as the number of bits in <see cref="m_depthCopyFormat"/>.
+        /// </remarks>
         /// </summary>
         public int m_depthBufferBits;
         
         /// <summary>
-        /// TODO doc
+        /// When true, enables the capture of the camera's depth texture.
         /// </summary>
         public bool m_copyDepth;
         
         /// <summary>
-        /// TODO doc
+        /// The format of the texture that holds the camera depth output.
+        /// <remarks>This should normally be a single-channel float format with precision >= <see cref="m_depthBufferBits"/>.</remarks>
         /// </summary>
         public GraphicsFormat m_depthCopyFormat;
         
         /// <summary>
-        /// Sets the encoding of depth in the normalized 0-1 range.
-        /// For details on how to decode the captured depth texture in a third-party application, see <see cref="DepthCopy.Mode"/>.
+        /// Sets the encoding of depth in the captured depth texture.
+        /// For details on how to decode the texture in a third-party application, see <see cref="DepthCopy.Mode"/>.
         /// </summary>
         public DepthCopy.Mode m_depthCopyMode;
 
