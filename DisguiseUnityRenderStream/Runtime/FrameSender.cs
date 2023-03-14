@@ -30,7 +30,7 @@ namespace Disguise.RenderStream
 
             m_description = new CameraCaptureDescription()
             {
-                m_colorSpace = ColorSpace.sRGB,
+                m_colorSpace = CameraCaptureDescription.ColorSpace.sRGB,
                 m_autoFlipY = true,
                 m_width = (int)stream.width,
                 m_height = (int)stream.height,
@@ -119,7 +119,7 @@ namespace Disguise.RenderStream
                 Width = m_description.m_width,
                 Height = m_description.m_height,
                 Format = m_pixelFormat,
-                Linear = m_description.m_colorSpace == ColorSpace.Linear
+                Linear = m_description.m_colorSpace != CameraCaptureDescription.ColorSpace.sRGB
             });
         }
     }

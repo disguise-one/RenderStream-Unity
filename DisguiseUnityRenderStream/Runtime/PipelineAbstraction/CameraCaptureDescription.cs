@@ -5,20 +5,27 @@ using UnityEngine.Experimental.Rendering;
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// Describes the desired final color space of the camera capture
-    /// </summary>
-    enum ColorSpace
-    {
-        Linear, // sRGB color primaries + linear transfer function
-        sRGB    // sRGB color primaries + sRGB transfer function
-    }
-    
-    /// <summary>
     /// Holds the configuration of a <see cref="CameraCapture"/> component.
     /// </summary>
     [Serializable]
     struct CameraCaptureDescription : IEquatable<CameraCaptureDescription>
     {
+        /// <summary>
+        /// Describes the desired final color space of the camera capture
+        /// </summary>
+        public enum ColorSpace
+        {
+            /// <summary>
+            /// sRGB color primaries + linear transfer function
+            /// </summary>
+            Linear,
+            
+            /// <summary>
+            /// sRGB color primaries + sRGB transfer function
+            /// </summary>
+            sRGB
+        }
+        
         public static CameraCaptureDescription Default = new CameraCaptureDescription()
         {
             m_colorSpace = ColorSpace.sRGB,
@@ -67,9 +74,8 @@ namespace Disguise.RenderStream
         public int m_msaaSamples;
         
         /// <summary>
-        /// TODO doc
-        /// <remarks>
         /// This can define the precision of the camera's depth attachment during the rendering of the scene.
+        /// <remarks>
         /// It doesn't necessarily need to be the same as the number of bits in <see cref="m_depthCopyFormat"/>.
         /// </remarks>
         /// </summary>
@@ -108,7 +114,7 @@ namespace Disguise.RenderStream
 
             if (m_colorSpace == ColorSpace.Linear && GraphicsFormatUtility.IsSRGBFormat(m_colorFormat))
             {
-                message = "The combination of linear color space and SRGB color format is not supported";
+                message = "The combination of linear color space and SRGB texture format is not supported";
                 return false;
             }
 
@@ -118,21 +124,54 @@ namespace Disguise.RenderStream
         
         /// <summary>
         /// When true, the final capture is a processed version of the <see cref="Camera.targetTexture"/>.
-        /// This depends on <see cref="m_colorSpace"/> and <see cref="m_autoFlipY"/>.
+        /// This depends on <see cref="NeedsSRGBConversion"/> and <see cref="m_autoFlipY"/>.
         /// </summary>
-        public bool NeedsBlit => NeedsFlipY || NeedsSoftwareSRGBConversion;
+        public bool NeedsBlit => NeedsFlipY || NeedsSRGBConversion;
 
         /// <summary>
         /// When true, the final capture has flipped Y UV coordinates relative to <see cref="Camera.targetTexture"/>
         /// depending on <see cref="m_autoFlipY"/> and the current graphics API.
         /// </summary>
         public bool NeedsFlipY => m_autoFlipY && SystemInfo.graphicsUVStartsAtTop;
-
+        
         /// <summary>
         /// We leverage the hardware linear <-> sRGB automatic conversion when possible.
-        /// No hardware sRGB texture format is available for float textures for example.
+        /// This is a function of the <see cref="m_colorSpace"/> and <see cref="m_colorFormat"/> of the camera capture.
         /// </summary>
-        public bool NeedsSoftwareSRGBConversion => m_colorSpace == ColorSpace.sRGB && !GraphicsFormatUtility.IsSRGBFormat(m_colorFormat);
+        public bool NeedsSRGBConversion
+        {
+            get
+            {
+                var srcDescriptor = SRGBConversions.GetAutoDescriptor(m_colorFormat);
+                var srcColorSpace = srcDescriptor.colorSpace switch
+                {
+                    SRGBConversions.Space.Linear => ColorSpace.Linear,
+                    SRGBConversions.Space.sRGB => ColorSpace.sRGB,
+                    _ => throw new ArgumentOutOfRangeException()
+                };
+
+                return srcColorSpace != m_colorSpace;
+            }
+        }
+
+        /// <inheritdoc cref="NeedsSRGBConversion"/>
+        public SRGBConversions.Conversion SRGBConversion
+        {
+            get
+            {
+                var srcDescriptor = SRGBConversions.GetAutoDescriptor(m_colorFormat);
+
+                var dstColorSpace = m_colorSpace switch
+                {
+                    ColorSpace.Linear => SRGBConversions.Space.Linear,
+                    ColorSpace.sRGB => SRGBConversions.Space.sRGB,
+                    _ => throw new ArgumentOutOfRangeException()
+                };
+                var dstDescriptor = new SRGBConversions.Descriptor(dstColorSpace, SRGBConversions.GetTextureFormat(m_colorFormat));
+
+                return SRGBConversions.GetConversion(srcDescriptor, dstDescriptor);
+            }
+        }
         
         public bool CameraTextureIsMSAA => m_msaaSamples > 1;
 
@@ -143,7 +182,6 @@ namespace Disguise.RenderStream
         {
             var descriptor = new RenderTextureDescriptor(m_width, m_height, m_colorFormat, m_depthBufferBits, 1);
             descriptor.msaaSamples = m_msaaSamples;
-            descriptor.sRGB = m_colorSpace == ColorSpace.sRGB && !NeedsSoftwareSRGBConversion;
             
             return descriptor;
         }

@@ -6,7 +6,7 @@ namespace Disguise.RenderStream
 {
     /// <summary>
     /// Configures the <see cref="GameObject"/>'s camera for offscreen rendering and provides access to its
-    /// color and optionally its depth buffer. Also handles color spaces and Y flip.
+    /// color and optionally its depth buffer. Also handles color space conversions and Y flip.
     ///
     /// <remarks>
     /// The camera will no longer render to the local screen.
@@ -203,7 +203,6 @@ namespace Disguise.RenderStream
 
             var needsBlit = m_description.NeedsBlit;
             var needsFlipY = m_description.NeedsFlipY;
-            var needsSoftwareSRGBConversion = m_description.NeedsSoftwareSRGBConversion;
             
             if (needsBlit)
             {
@@ -212,7 +211,7 @@ namespace Disguise.RenderStream
                 BlitExtended.Instance.BlitTexture(cmd,
                     m_cameraTexture,
                     m_cameraBlitTexture,
-                    needsSoftwareSRGBConversion ? BlitExtended.ColorSpaceConversion.LinearToSRGB : BlitExtended.ColorSpaceConversion.None,
+                    BlitExtended.GetSRGBConversion(m_description.SRGBConversion),
                     needsFlipY ? BlitExtended.FlippedYScaleBias : BlitExtended.IdentityScaleBias);
                 
                 ctx.ExecuteCommandBuffer(cmd);

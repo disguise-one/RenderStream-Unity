@@ -55,6 +55,13 @@ namespace Disguise.RenderStream
                                  $"because it's already enabled in the sibling {nameof(CameraCapture)} component");
             }
 
+            sourceColorSpace = m_cameraCapture.description.m_colorSpace switch
+            {
+                CameraCaptureDescription.ColorSpace.Linear => SourceColorSpace.Linear,
+                CameraCaptureDescription.ColorSpace.sRGB => SourceColorSpace.sRGB,
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
             switch (m_mode)
             {
                 case Mode.Color:

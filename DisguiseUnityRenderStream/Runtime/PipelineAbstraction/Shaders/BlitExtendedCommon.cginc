@@ -12,6 +12,7 @@ SamplerState sampler_LinearClamp;
 TEXTURE2D(_BlitTexture);
 
 uniform float4 _BlitScaleBias;
+uniform float4 _BlitScaleBiasRt;
 
 struct Attributes
 {
@@ -38,6 +39,21 @@ Varyings Vert(Attributes input)
     output.positionCS = pos;
     output.texcoord   = uv * _BlitScaleBias.xy + _BlitScaleBias.zw;
 
+    return output;
+}
+
+Varyings VertQuad(Attributes input)
+{
+    Varyings output;
+    UNITY_SETUP_INSTANCE_ID(input);
+    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+    float4 pos = GetQuadVertexPosition(input.vertexID);
+    float2 uv  = GetQuadTexCoord(input.vertexID);
+
+    output.positionCS    = pos * float4(_BlitScaleBiasRt.x, _BlitScaleBiasRt.y, 1, 1) + float4(_BlitScaleBiasRt.z, _BlitScaleBiasRt.w, 0, 0);
+    output.positionCS.xy = output.positionCS.xy * float2(2.0f, -2.0f) + float2(-1.0f, 1.0f); //convert to -1..1
+    output.texcoord      = uv * _BlitScaleBias.xy + _BlitScaleBias.zw;
     return output;
 }
 

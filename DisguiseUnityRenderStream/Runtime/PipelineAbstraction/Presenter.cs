@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
@@ -158,16 +159,50 @@ namespace Disguise.RenderStream
     /// mouse coordinates to account for the blit.
     /// </para>
     ///
-    /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
+    /// <remarks>
+    /// Assumes that the local screen is the <see cref="Display.main">main display</see>.
+    /// Modify this class for local multi-monitor specifics.
+    /// Doesn't support HDR display output.
+    /// </remarks>
     /// </summary>
     [ExecuteAlways]
     class Presenter : MonoBehaviour
     {
+        /// <summary>
+        /// The color space of the <see cref="source"/>'s texture.
+        /// </summary>
+        public enum SourceColorSpace
+        {
+            /// <summary>
+            /// Blit directly without any color space conversions.
+            /// </summary>
+            Passthrough = -2,
+            
+            /// <summary>
+            /// Detect the color space based on the <see cref="source"/>'s texture's <see cref="GraphicsFormat"/>.
+            /// sRGB formats are assumed to contain sRGB data, while other formats are assumed to contain linear data.
+            /// </summary>
+            Auto = -1,
+            
+            /// <summary>
+            /// sRGB color primaries + linear transfer function
+            /// </summary>
+            Linear = CameraCaptureDescription.ColorSpace.Linear,
+            
+            /// <summary>
+            /// sRGB color primaries + sRGB transfer function
+            /// </summary>
+            sRGB = CameraCaptureDescription.ColorSpace.sRGB,
+        }
+        
         const string k_profilerTag = "Disguise Presenter";
         const string k_profilerClearTag = "Disguise Presenter Clear";
 
         [SerializeField]
         RenderTexture m_source;
+        
+        [SerializeField]
+        SourceColorSpace m_sourceColorSpace = SourceColorSpace.Auto;
         
         [SerializeField]
         PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.Fill;
@@ -190,7 +225,7 @@ namespace Disguise.RenderStream
         }
         
         /// <summary>
-        /// On platforms such as DX12
+        /// On platforms such as DX12 the texture needs to be flipped before being presented to the screen.
         /// </summary>
         public bool autoFlipY
         {
@@ -205,6 +240,16 @@ namespace Disguise.RenderStream
         {
             get => m_source;
             protected set => m_source = value;
+        }
+        
+        /// <summary>
+        /// The color space of the <see cref="source"/> texture.
+        /// <see cref="SourceColorSpace.Auto"/> should manage most cases.
+        /// </summary>
+        public SourceColorSpace sourceColorSpace
+        {
+            get => m_sourceColorSpace;
+            set => m_sourceColorSpace = value;
         }
 
         /// <summary>
@@ -227,6 +272,10 @@ namespace Disguise.RenderStream
         /// </summary>
         protected virtual void OnEnable()
         {
+#if DISGUISE_UNITY_USE_HDR_DISPLAY
+            Debug.LogWarning($"{nameof(Presenter)} only supports SDR output, but HDR Display Output is allowed in the Project Settings.");
+#endif
+            
 #if UNITY_EDITOR
             m_backEnd = new EditorBackend(this);
 #else
@@ -265,15 +314,37 @@ namespace Disguise.RenderStream
             return scaleBias;
         }
 
+        /// <summary>
+        /// Resolves the color space conversion to apply based on
+        /// the source texture and the main display's backbuffer.
+        /// </summary>
+        BlitExtended.ColorSpaceConversion GetColorSpaceConversion()
+        {
+            if (m_sourceColorSpace == SourceColorSpace.Passthrough)
+                return BlitExtended.ColorSpaceConversion.None;
+            
+            var sourceDescriptor = m_sourceColorSpace switch
+            {
+                SourceColorSpace.Auto => SRGBConversions.GetAutoDescriptor(m_source),
+                SourceColorSpace.Linear => new SRGBConversions.Descriptor(SRGBConversions.Space.Linear, SRGBConversions.GetTextureFormat(m_source)),
+                SourceColorSpace.sRGB => new SRGBConversions.Descriptor(SRGBConversions.Space.sRGB, SRGBConversions.GetTextureFormat(m_source)),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            var mainDisplayDescriptor = SRGBConversions.GetDisplayDescriptor(Display.main);
+            var conversion = SRGBConversions.GetConversion(sourceDescriptor, mainDisplayDescriptor);
+            return BlitExtended.GetSRGBConversion(conversion);
+        }
+
         void IssueCommands(CommandBuffer cmd)
         {
-            RenderTexture screen = default;
-            CoreUtils.SetRenderTarget(cmd, screen);
+            const RenderTexture mainDisplay = default;
+            CoreUtils.SetRenderTarget(cmd, mainDisplay);
             
             var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
             var dstScaleBias = GetScaleBias(false);
             
-            Blitter.BlitQuad(cmd, m_source, srcScaleBias, dstScaleBias, 0, true);
+            BlitExtended.Instance.BlitQuad(cmd, m_source, GetColorSpaceConversion(), srcScaleBias, dstScaleBias);
         }
         
         void ClearScreen()

@@ -1,4 +1,4 @@
-Shader "Hidden/Disguise/RenderStream/BlitExtendedHDRP"
+Shader "Hidden/Disguise/RenderStream/BlitExtendedURP"
 {
     HLSLINCLUDE
         #include "BlitExtendedCommon.cginc"
@@ -16,7 +16,7 @@ Shader "Hidden/Disguise/RenderStream/BlitExtendedHDRP"
             "RenderPipeline" = "UniversalRenderPipeline"
         }
 
-        // No color space conversion
+        // Fullscreen triangle: No color space conversion
         Pass
         {
             Cull Off ZTest Always ZWrite Off Blend Off
@@ -27,7 +27,7 @@ Shader "Hidden/Disguise/RenderStream/BlitExtendedHDRP"
             ENDHLSL
         }
         
-        // Linear to sRGB
+        // Fullscreen triangle: Linear to sRGB
         Pass
         {
             Cull Off ZTest Always ZWrite Off Blend Off
@@ -38,13 +38,46 @@ Shader "Hidden/Disguise/RenderStream/BlitExtendedHDRP"
             ENDHLSL
         }
         
-        // sRGB to Linear
+        // Fullscreen triangle: sRGB to Linear
         Pass
         {
             Cull Off ZTest Always ZWrite Off Blend Off
 
             HLSLPROGRAM
                 #pragma vertex Vert
+                #pragma fragment FragBlitSRGBToLinear
+            ENDHLSL
+        }
+        
+        // Quad: No color space conversion
+        Pass
+        {
+            Cull Off ZTest Always ZWrite Off Blend Off
+
+            HLSLPROGRAM
+                #pragma vertex VertQuad
+                #pragma fragment FragNoConversion
+            ENDHLSL
+        }
+        
+        // Quad: Linear to sRGB
+        Pass
+        {
+            Cull Off ZTest Always ZWrite Off Blend Off
+
+            HLSLPROGRAM
+                #pragma vertex VertQuad
+                #pragma fragment FragBlitLinearToSRGB
+            ENDHLSL
+        }
+        
+        // Quad: sRGB to Linear
+        Pass
+        {
+            Cull Off ZTest Always ZWrite Off Blend Off
+
+            HLSLPROGRAM
+                #pragma vertex VertQuad
                 #pragma fragment FragBlitSRGBToLinear
             ENDHLSL
         }
