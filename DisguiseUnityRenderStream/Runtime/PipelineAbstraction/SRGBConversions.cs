@@ -44,22 +44,29 @@ namespace Disguise.RenderStream
         public enum Conversion
         {
             /// <summary>
-            /// No software conversion required.
-            /// <remarks>
-            /// A conversion may or may not be happening depending on the source and destination texture formats.
-            /// </remarks>
+            /// No hardware or software conversion
             /// </summary>
             None,
             
             /// <summary>
-            /// <see cref="Space.Linear"/> to <see cref="Space.sRGB"/>
+            /// <see cref="Space.Linear"/> to <see cref="Space.sRGB"/> applied by the hardware during a blit operation
             /// </summary>
-            LinearToSRGB,
+            HardwareLinearToSRGB,
             
             /// <summary>
-            /// <see cref="Space.sRGB"/> to <see cref="Space.Linear"/>
+            /// <see cref="Space.sRGB"/> to <see cref="Space.Linear"/> applied by the hardware during a blit operation
             /// </summary>
-            SRGBToLinear
+            HardwareSRGBToLinear,
+            
+            /// <summary>
+            /// <see cref="Space.Linear"/> to <see cref="Space.sRGB"/> applied by the shader code during a blit operation
+            /// </summary>
+            SoftwareLinearToSRGB,
+            
+            /// <summary>
+            /// <see cref="Space.sRGB"/> to <see cref="Space.Linear"/> applied in by the shader code during a blit operation
+            /// </summary>
+            SoftwareSRGBToLinear
         }
 
         /// <summary>
@@ -81,7 +88,7 @@ namespace Disguise.RenderStream
         /// <summary>
         /// Represents the a texture and its contents
         /// </summary>
-        public struct Descriptor
+        public readonly struct Descriptor
         {
             public Space colorSpace { get; }
             public Texture textureFormat { get; }
@@ -146,46 +153,32 @@ namespace Disguise.RenderStream
             var textureFormat = GetTextureFormat(display);
             return new Descriptor(Space.sRGB, textureFormat);
         }
-        
-        struct TableEntryHelper
-        {
-            public Space srcColor;
-            public Texture srcTex;
-            public Space dstColor;
-            public Texture dstTex;
-        }
 
         /// <returns>
-        /// The software conversion to apply inside a blit shader to ensure color consistency between <paramref name="src"/> and <paramref name="dest"/>.
+        /// The software conversion to apply inside a blit shader to ensure color consistency between <paramref name="src"/> and <paramref name="dst"/>.
         /// </returns>
         /// <exception cref="InvalidOperationException">Invalid descriptor.</exception>
         public static Conversion GetConversion(Descriptor src, Descriptor dst)
         {
-            var x = new TableEntryHelper()
-            {
-                srcColor = src.colorSpace,
-                srcTex = src.textureFormat,
-                dstColor = dst.colorSpace,
-                dstTex = dst.textureFormat
-            };
+            (Space srcColor, Texture srcTex, Space dstColor, Texture dstTex) x = (src.colorSpace, src.textureFormat, dst.colorSpace, dst.textureFormat);
 
             return x switch
             {
                 // Shader sampler color space: Linear
                 { srcColor: Space.sRGB, srcTex: Texture.sRGB, dstColor: Space.sRGB, dstTex: Texture.sRGB } => Conversion.None,
-                { srcColor: Space.sRGB, srcTex: Texture.sRGB, dstColor: Space.sRGB, dstTex: Texture.Other } => Conversion.LinearToSRGB,
+                { srcColor: Space.sRGB, srcTex: Texture.sRGB, dstColor: Space.sRGB, dstTex: Texture.Other } => Conversion.SoftwareLinearToSRGB,
                 { srcColor: Space.sRGB, srcTex: Texture.sRGB, dstColor: Space.Linear, dstTex: Texture.sRGB } => throw new InvalidOperationException(),
-                { srcColor: Space.sRGB, srcTex: Texture.sRGB, dstColor: Space.Linear, dstTex: Texture.Other } => Conversion.None,
+                { srcColor: Space.sRGB, srcTex: Texture.sRGB, dstColor: Space.Linear, dstTex: Texture.Other } => Conversion.HardwareSRGBToLinear,
                 
                 // Shader sampler color space: sRGB
-                { srcColor: Space.sRGB, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.sRGB } => Conversion.SRGBToLinear,
+                { srcColor: Space.sRGB, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.sRGB } => Conversion.SoftwareSRGBToLinear,
                 { srcColor: Space.sRGB, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.Other } => Conversion.None,
                 { srcColor: Space.sRGB, srcTex: Texture.Other, dstColor: Space.Linear, dstTex: Texture.sRGB } => throw new InvalidOperationException(),
-                { srcColor: Space.sRGB, srcTex: Texture.Other, dstColor: Space.Linear, dstTex: Texture.Other } => Conversion.SRGBToLinear,
+                { srcColor: Space.sRGB, srcTex: Texture.Other, dstColor: Space.Linear, dstTex: Texture.Other } => Conversion.SoftwareSRGBToLinear,
                 
                 // Shader sampler color space: Linear
-                { srcColor: Space.Linear, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.sRGB } => Conversion.None,
-                { srcColor: Space.Linear, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.Other } => Conversion.LinearToSRGB,
+                { srcColor: Space.Linear, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.sRGB } => Conversion.HardwareLinearToSRGB,
+                { srcColor: Space.Linear, srcTex: Texture.Other, dstColor: Space.sRGB, dstTex: Texture.Other } => Conversion.SoftwareLinearToSRGB,
                 { srcColor: Space.Linear, srcTex: Texture.Other, dstColor: Space.Linear, dstTex: Texture.sRGB } => throw new InvalidOperationException(),
                 { srcColor: Space.Linear, srcTex: Texture.Other, dstColor: Space.Linear, dstTex: Texture.Other } => Conversion.None,
                 

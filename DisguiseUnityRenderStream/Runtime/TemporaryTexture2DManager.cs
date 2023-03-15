@@ -30,14 +30,13 @@ namespace Disguise.RenderStream
         
         public override int GetHashCode()
         {
-            unchecked
-            {
-                var hashCode = Width;
-                hashCode = (hashCode * 397) ^ Height;
-                hashCode = (hashCode * 397) ^ (int)Format;
-                hashCode = (hashCode * 397) ^ (Linear ? 1 : 0);
-                return hashCode;
-            }
+            return HashCode.Combine
+            (
+                Width,
+                Height,
+                (int)Format,
+                Linear ? 1 : 0
+            );
         }
 
         public bool Equals(Texture2DDescriptor other)

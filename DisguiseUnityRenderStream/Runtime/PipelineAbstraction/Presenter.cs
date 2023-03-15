@@ -8,155 +8,15 @@ using UnityEngine.Rendering;
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// Strategy calculations for the <see cref="Blitter"/> API.
-    /// </summary>
-    static class PresenterStrategy
-    {
-        /// <summary>
-        /// A strategy to handle the size and aspect ratio differences between two surfaces.
-        /// </summary>
-        public enum Strategy
-        {
-            /// <summary>
-            /// Stretches the source to have the same size as the destination.
-            /// The aspect ratio may be lost.
-            /// </summary>
-            Stretch,
-            
-            /// <summary>
-            /// The source isn't scaled at all but it's centered within the destination.
-            /// </summary>
-            NoResize,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio so that the width matches the destination.
-            /// </summary>
-            FitWidth,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio so that the height matches the destination.
-            /// </summary>
-            FitHeight,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio to fill the destination.
-            /// It can't overflow but can leave black bars on the sides.
-            /// </summary>
-            Letterbox,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio to fill the destination.
-            /// It can overflow but won't leave black bars on the sides.
-            /// </summary>
-            Fill
-        }
-
-        /// <summary>
-        /// Computes a strategy for the <see cref="Blitter"/> API.
-        /// </summary>
-        /// <returns>A scale + bias vector</returns>
-        public static Vector4 DoStrategy(Strategy strategy, Vector2 srcSize, Vector2 dstSize)
-        {
-            switch (strategy)
-            {
-                case Strategy.Stretch:
-                    return Stretch(srcSize, dstSize);
-                case Strategy.NoResize:
-                    return NoResize(srcSize, dstSize);
-                case Strategy.FitWidth:
-                    return FitWidth(srcSize, dstSize);
-                case Strategy.FitHeight:
-                    return FitHeight(srcSize, dstSize);
-                case Strategy.Letterbox:
-                    return Letterbox(srcSize, dstSize);
-                case Strategy.Fill:
-                    return Fill(srcSize, dstSize);
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-        
-        static Vector4 Stretch(Vector2 srcSize, Vector2 dstSize)
-        {
-            return new Vector4(1f, 1f, 0f, 0f);
-        }
-        
-        static Vector4 NoResize(Vector2 srcSize, Vector2 dstSize)
-        {
-            var scale = srcSize / dstSize;
-            var offset = CenterUVOffset(scale);
-            
-            return new Vector4(scale.x, scale.y, offset.x, offset.y);
-        }
-        
-        static Vector4 FitWidth(Vector2 srcSize, Vector2 dstSize)
-        {
-            var yScale = InverseAspectRatio(srcSize) * AspectRatio(dstSize);
-            var yOffset = CenterUVOffset(yScale);
-            
-            return new Vector4(1f, yScale, 0f, yOffset);
-        }
-        
-        static Vector4 FitHeight(Vector2 srcSize, Vector2 dstSize)
-        {
-            var xScale = AspectRatio(srcSize) * InverseAspectRatio(dstSize);
-            var xOffset = CenterUVOffset(xScale);
-            
-            return new Vector4(xScale, 1f, xOffset, 0f);
-        }
-        
-        static Vector4 Letterbox(Vector2 srcSize, Vector2 dstSize)
-        {
-            var scrAspect = AspectRatio(srcSize);
-            var dstAspect = AspectRatio(dstSize);
-
-            if (scrAspect > dstAspect)
-                return FitWidth(srcSize, dstSize);
-            else
-                return FitHeight(srcSize, dstSize);
-        }
-        
-        static Vector4 Fill(Vector2 srcSize, Vector2 dstSize)
-        {
-            var scrAspect = AspectRatio(srcSize);
-            var dstAspect = AspectRatio(dstSize);
-
-            if (scrAspect < dstAspect)
-                return FitWidth(srcSize, dstSize);
-            else
-                return FitHeight(srcSize, dstSize);
-        }
-
-        static float AspectRatio(Vector2 size)
-        {
-            return size.x / size.y;
-        }
-        
-        static float InverseAspectRatio(Vector2 size)
-        {
-            return size.y / size.x;
-        }
-
-        static float CenterUVOffset(float scale)
-        {
-            return (1f - scale) / 2f;
-        }
-        
-        static Vector2 CenterUVOffset(Vector2 scale)
-        {
-            return (Vector2.one - scale) / 2f;
-        }
-    }
-    
-    /// <summary>
     /// <para>
     /// Blits a texture to the local screen.
-    /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
+    /// A number of <see cref="BlitStrategy.Strategy">strategies</see> are available to handle
+    /// the size and aspect ratio differences between the two surfaces.
     /// </para>
     /// 
     /// <para>
-    /// <see cref="PresenterInput"/> is responsible for adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/>
-    /// mouse coordinates to account for the blit.
+    /// <see cref="UITKInputForPresenter"/> and <see cref="UGUIInputForPresenter"/> are responsible for
+    /// adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/> mouse coordinates to account for the blit.
     /// </para>
     ///
     /// <remarks>
@@ -176,7 +36,7 @@ namespace Disguise.RenderStream
             /// <summary>
             /// Blit directly without any color space conversions.
             /// </summary>
-            Passthrough = -2,
+            Unspecified = -2,
             
             /// <summary>
             /// Detect the color space based on the <see cref="source"/>'s texture's <see cref="GraphicsFormat"/>.
@@ -205,7 +65,7 @@ namespace Disguise.RenderStream
         SourceColorSpace m_sourceColorSpace = SourceColorSpace.Auto;
         
         [SerializeField]
-        PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.Fill;
+        BlitStrategy.Strategy m_strategy = BlitStrategy.Strategy.Fill;
 
         [SerializeField]
         bool m_autoFlipY = true;
@@ -218,7 +78,7 @@ namespace Disguise.RenderStream
         /// <summary>
         /// Describes how to handle the size and aspect ratio differences between the <see cref="source"/> and the screen.
         /// </summary>
-        public PresenterStrategy.Strategy strategy
+        public BlitStrategy.Strategy strategy
         {
             get => m_strategy;
             set => m_strategy = value;
@@ -297,19 +157,18 @@ namespace Disguise.RenderStream
         }
         
         /// <summary>
-        /// Get the coordinates that would be passed to the <see cref="Blitter"/> API.
+        /// Get the destination UV transformations to pass to the <see cref="Blitter"/> API.
         /// </summary>
         /// <param name="skipAutoFlip">
         /// When true, the return value isn't adjusted for the graphics API's UV representation.
         /// This is useful for UI which only needs a CPU representation of the bounds.
         /// </param>
-        /// <returns>A scale + bias vector</returns>
-        public Vector4 GetScaleBias(bool skipAutoFlip)
+        public ScaleBias GetScaleBias(bool skipAutoFlip)
         {
-            var scaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
+            var scaleBias = BlitStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
 
             if (autoFlipY && !skipAutoFlip && SystemInfo.graphicsUVStartsAtTop)
-                scaleBias = BlitExtended.FlipYScaleBias(scaleBias);
+                scaleBias = ScaleBias.FlipY(scaleBias);
 
             return scaleBias;
         }
@@ -320,7 +179,7 @@ namespace Disguise.RenderStream
         /// </summary>
         BlitExtended.ColorSpaceConversion GetColorSpaceConversion()
         {
-            if (m_sourceColorSpace == SourceColorSpace.Passthrough)
+            if (m_sourceColorSpace == SourceColorSpace.Unspecified)
                 return BlitExtended.ColorSpaceConversion.None;
             
             var sourceDescriptor = m_sourceColorSpace switch
@@ -341,7 +200,7 @@ namespace Disguise.RenderStream
             const RenderTexture mainDisplay = default;
             CoreUtils.SetRenderTarget(cmd, mainDisplay);
             
-            var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
+            var srcScaleBias = ScaleBias.Identity;
             var dstScaleBias = GetScaleBias(false);
             
             BlitExtended.Instance.BlitQuad(cmd, m_source, GetColorSpaceConversion(), srcScaleBias, dstScaleBias);
@@ -351,8 +210,8 @@ namespace Disguise.RenderStream
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerClearTag);
 
-            RenderTexture screen = default;
-            CoreUtils.SetRenderTarget(cmd, screen);
+            const RenderTexture mainDisplay = default;
+            CoreUtils.SetRenderTarget(cmd, mainDisplay);
             cmd.ClearRenderTarget(true, true, Color.black);
             
             Graphics.ExecuteCommandBuffer(cmd);
@@ -362,7 +221,7 @@ namespace Disguise.RenderStream
         
         abstract class Backend
         {
-            protected Presenter m_presenter;
+            protected readonly Presenter m_presenter;
             
             protected Backend(Presenter presenter)
             {

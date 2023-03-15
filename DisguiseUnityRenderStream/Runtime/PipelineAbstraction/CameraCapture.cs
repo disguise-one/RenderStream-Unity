@@ -18,26 +18,23 @@ namespace Disguise.RenderStream
     [RequireComponent(typeof(Camera))]
     class CameraCapture : MonoBehaviour
     {
-        public struct Capture
+        public readonly struct Capture
         {
-            RenderTexture m_cameraTexture;
-            RenderTexture m_depthTexture;
-
             internal Capture(RenderTexture cameraTexture, RenderTexture depthTexture)
             {
-                m_cameraTexture = cameraTexture;
-                m_depthTexture = depthTexture;
+                this.cameraTexture = cameraTexture;
+                this.depthTexture = depthTexture;
             }
             
             /// <summary>
             /// Refers to <see cref="CameraCapture.cameraTexture"/>.
             /// </summary>
-            public RenderTexture cameraTexture => m_cameraTexture;
-        
+            public RenderTexture cameraTexture { get; }
+
             /// <summary>
             /// Refers to <see cref="CameraCapture.depthTexture"/>.
             /// </summary>
-            public RenderTexture depthTexture => m_depthTexture;
+            public RenderTexture depthTexture { get; }
         }
 
         /// <summary>
@@ -58,7 +55,7 @@ namespace Disguise.RenderStream
         ///
         /// <remarks>
         /// To avoid unnecessary texture copies, this can refer directly to <see cref="Camera.targetTexture"/> (depending on
-        /// <see cref="CameraCaptureDescription.m_flipY"/> and <see cref="CameraCaptureDescription.m_colorSpace"/>).
+        /// <see cref="CameraCaptureDescription.m_autoFlipY"/> and <see cref="CameraCaptureDescription.m_colorSpace"/>).
         /// </remarks>
         /// </summary>
         public RenderTexture cameraTexture => m_description.NeedsBlit ? m_cameraBlitTexture : m_cameraTexture;
@@ -202,7 +199,6 @@ namespace Disguise.RenderStream
                 return;
 
             var needsBlit = m_description.NeedsBlit;
-            var needsFlipY = m_description.NeedsFlipY;
             
             if (needsBlit)
             {
@@ -212,7 +208,7 @@ namespace Disguise.RenderStream
                     m_cameraTexture,
                     m_cameraBlitTexture,
                     BlitExtended.GetSRGBConversion(m_description.SRGBConversion),
-                    needsFlipY ? BlitExtended.FlippedYScaleBias : BlitExtended.IdentityScaleBias);
+                    m_description.NeedsFlipY ? ScaleBias.FlippedY : ScaleBias.Identity);
                 
                 ctx.ExecuteCommandBuffer(cmd);
                 ctx.Submit();

@@ -7,7 +7,8 @@ namespace Disguise.RenderStream
     /// <summary>
     /// <para>
     /// Blits this <see cref="GameObject"/>'s <see cref="CameraCapture"/> to the local screen.
-    /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
+    /// A number of <see cref="BlitStrategy.Strategy">strategies</see> are available to handle
+    /// the size and aspect ratio differences between the two surfaces.
     /// </para>
     ///
     /// <para>
@@ -15,8 +16,12 @@ namespace Disguise.RenderStream
     /// </para>
     ///
     /// <para>
-    /// <see cref="PresenterInput"/> is responsible for adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/>
-    /// mouse coordinates to account for the blit.
+    /// <see cref="Presenter.sourceColorSpace"/> is automatically set to match <see cref="CameraCaptureDescription.m_colorSpace"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="UITKInputForPresenter"/> and <see cref="UGUIInputForPresenter"/> are responsible for
+    /// adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/> mouse coordinates to account for the blit.
     /// </para>
     /// </summary>
     [ExecuteAlways]

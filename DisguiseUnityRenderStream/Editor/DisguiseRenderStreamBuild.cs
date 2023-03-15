@@ -19,8 +19,8 @@ namespace Disguise.RenderStream
         {
             CheckVsync();
             
-            AddAlwaysIncludedShader(BlitExtended.k_ShaderName);
-            AddAlwaysIncludedShader(DepthCopy.k_ShaderName);
+            AddAlwaysIncludedShader(BlitExtended.ShaderName);
+            AddAlwaysIncludedShader(DepthCopy.ShaderName);
             
             var target = report.summary.platform;
             
@@ -53,7 +53,7 @@ namespace Disguise.RenderStream
         /// https://forum.unity.com/threads/modify-always-included-shaders-with-pre-processor.509479/
         /// </remarks>
         /// <param name="shaderName">The name of the shader to validate.</param>
-        internal static void AddAlwaysIncludedShader(string shaderName)
+        static void AddAlwaysIncludedShader(string shaderName)
         {
             var shader = Shader.Find(shaderName);
             if (shader == null)

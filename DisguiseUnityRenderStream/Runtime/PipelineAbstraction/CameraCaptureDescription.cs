@@ -93,7 +93,7 @@ namespace Disguise.RenderStream
         public GraphicsFormat m_depthCopyFormat;
         
         /// <summary>
-        /// Sets the encoding of depth in the captured depth texture.
+        /// Sets the encoding of depth inside the captured depth texture.
         /// For details on how to decode the texture in a third-party application, see <see cref="DepthCopy.Mode"/>.
         /// </summary>
         public DepthCopy.Mode m_depthCopyMode;
@@ -135,7 +135,7 @@ namespace Disguise.RenderStream
         public bool NeedsFlipY => m_autoFlipY && SystemInfo.graphicsUVStartsAtTop;
         
         /// <summary>
-        /// We leverage the hardware linear <-> sRGB automatic conversion when possible.
+        /// We sometimes need to perform a blit to convert from <see cref="ColorSpace.Linear"/> to <see cref="ColorSpace.sRGB"/>.
         /// This is a function of the <see cref="m_colorSpace"/> and <see cref="m_colorFormat"/> of the camera capture.
         /// </summary>
         public bool NeedsSRGBConversion
@@ -213,20 +213,20 @@ namespace Disguise.RenderStream
 
         public override int GetHashCode()
         {
-            unchecked
-            {
-                var hashCode = (int)m_colorSpace;
-                hashCode = (hashCode * 397) ^ (m_autoFlipY ? 1 : 0);
-                hashCode = (hashCode * 397) ^ m_width;
-                hashCode = (hashCode * 397) ^ m_height;
-                hashCode = (hashCode * 397) ^ (int)m_colorFormat;
-                hashCode = (hashCode * 397) ^ m_msaaSamples;
-                hashCode = (hashCode * 397) ^ m_depthBufferBits;
-                hashCode = (hashCode * 397) ^ (m_copyDepth ? 1 : 0);
-                hashCode = (hashCode * 397) ^ (int)m_depthCopyFormat;
-                hashCode = (hashCode * 397) ^ (int)m_depthCopyMode;
-                return hashCode;
-            }
+            var hashCode = new HashCode();
+            
+            hashCode.Add((int)m_colorSpace);
+            hashCode.Add(m_autoFlipY ? 1 : 0);
+            hashCode.Add(m_width);
+            hashCode.Add(m_height);
+            hashCode.Add((int)m_colorFormat);
+            hashCode.Add(m_msaaSamples);
+            hashCode.Add(m_depthBufferBits);
+            hashCode.Add(m_copyDepth ? 1 : 0);
+            hashCode.Add((int)m_depthCopyFormat);
+            hashCode.Add((int)m_depthCopyMode);
+            
+            return hashCode.ToHashCode();
         }
 
         public bool Equals(CameraCaptureDescription other)

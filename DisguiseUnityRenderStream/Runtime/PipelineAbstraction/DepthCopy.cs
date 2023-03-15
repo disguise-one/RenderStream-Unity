@@ -10,15 +10,15 @@ namespace Disguise.RenderStream
     class DepthCopy
     {
 #if UNITY_PIPELINE_HDRP && HDRP_VERSION_SUPPORTED
-        public const string k_ShaderName = "Hidden/Disguise/RenderStream/DepthCopyHDRP";
+        public const string ShaderName = "Hidden/Disguise/RenderStream/DepthCopyHDRP";
 #elif UNITY_PIPELINE_URP && URP_VERSION_SUPPORTED
-        public const string k_ShaderName = "Hidden/Disguise/RenderStream/DepthCopyURP";
+        public const string ShaderName = "Hidden/Disguise/RenderStream/DepthCopyURP";
 #else
-        public const string k_ShaderName = null;
+        public const string ShaderName = null;
 #endif
         
         /// <summary>
-        /// Defines how to transform the depth values into the 0-1 range.
+        /// Represents the encoding of depth inside the captured depth texture.
         /// The modes are equivalent to the depth sampling modes of the Shader Graph's Scene Depth Node:
         /// https://docs.unity3d.com/Packages/com.unity.shadergraph@15.0/manual/Scene-Depth-Node.html.
         /// </summary>
@@ -51,7 +51,7 @@ namespace Disguise.RenderStream
             Debug.LogError($"No supported render pipeline was found for {nameof(DepthCopy)}.");
 #endif
             
-            var shader = Shader.Find(k_ShaderName);
+            var shader = Shader.Find(ShaderName);
             if (shader != null)
             {
                 m_material = CoreUtils.CreateEngineMaterial(shader);
@@ -63,7 +63,9 @@ namespace Disguise.RenderStream
         /// <summary>
         /// Performs the copy using the SRP's currently active camera and the provided <see cref="FrameData"/>.
         /// </summary>
+        /// <param name="context"></param>
         /// <param name="depthOutput">The texture to which the depth will be written to.</param>
+        /// <param name="mode">The texture to which the depth will be written to.</param>
         public void Execute(ScriptableRenderContext context, RenderTexture depthOutput, Mode mode)
         {
             Assert.IsNotNull(depthOutput);
