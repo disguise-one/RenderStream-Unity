@@ -7,7 +7,7 @@ namespace Disguise.RenderStream
     /// <summary>
     /// Copies a camera's depth into a texture.
     /// </summary>
-    public class DepthCopy
+    class DepthCopy
     {
 #if UNITY_PIPELINE_HDRP && HDRP_VERSION_SUPPORTED
         public const string ShaderName = "Hidden/Disguise/RenderStream/DepthCopyHDRP";

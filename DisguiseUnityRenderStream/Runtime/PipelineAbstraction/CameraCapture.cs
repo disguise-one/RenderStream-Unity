@@ -16,7 +16,7 @@ namespace Disguise.RenderStream
     /// </summary>
     [ExecuteAlways]
     [RequireComponent(typeof(Camera))]
-    public class CameraCapture : MonoBehaviour
+    class CameraCapture : MonoBehaviour
     {
         public readonly struct Capture
         {

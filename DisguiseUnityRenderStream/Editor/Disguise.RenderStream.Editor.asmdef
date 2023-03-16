@@ -2,6 +2,7 @@
     "name": "Disguise.RenderStream.Editor",
     "references": [
         "Disguise.RenderStream",
+        "Disguise.RenderStream.PipelineAbstraction",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Core.Editor",
         "Unity.RenderPipelines.HighDefinition.Runtime",

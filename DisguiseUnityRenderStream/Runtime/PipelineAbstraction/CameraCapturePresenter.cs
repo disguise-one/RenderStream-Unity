@@ -25,7 +25,7 @@ namespace Disguise.RenderStream
     /// </para>
     /// </summary>
     [ExecuteAlways]
-    public class CameraCapturePresenter : Presenter
+    class CameraCapturePresenter : Presenter
     {
         /// <summary>
         /// Describes which texture to present.
