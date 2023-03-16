@@ -1,45 +1,32 @@
 #pragma once
 #include "d3d12.h"
 
+#include "Disguise/d3renderstream.h"
+
 #include "Logger.h"
 #include "DX12System.h"
 
 namespace NativeRenderingPlugin
 {
-    enum PixelFormat
-    {
-        Invalid,
-        BGRA8,
-        BGRX8,
-        RGBA32F,
-        RGBA16,
-        RGBA8,
-        RGBX8,
-    };
-
-    DXGI_FORMAT ToDXFormat(PixelFormat pixelFormat)
+    DXGI_FORMAT ToDXFormat(RSPixelFormat pixelFormat, bool sRGB)
     {
         switch (pixelFormat)
         {
-        case BGRA8:
-            return DXGI_FORMAT_B8G8R8A8_UNORM;
+        case RSPixelFormat::RS_FMT_BGRA8:
+        case RSPixelFormat::RS_FMT_BGRX8:
+            return sRGB ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : DXGI_FORMAT_B8G8R8A8_UNORM;
 
-        case BGRX8:
-            return DXGI_FORMAT_B8G8R8A8_UNORM;
-
-        case RGBA32F:
+        case RSPixelFormat::RS_FMT_RGBA32F:
             return DXGI_FORMAT_R32G32B32A32_FLOAT;
 
-        case RGBA16:
-            return DXGI_FORMAT_R32G32B32A32_FLOAT;
+        case RSPixelFormat::RS_FMT_RGBA16:
+            return DXGI_FORMAT_R16G16B16A16_UNORM;
 
-        case RGBA8:
-            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case RSPixelFormat::RS_FMT_RGBA8:
+        case RSPixelFormat::RS_FMT_RGBX8:
+            return sRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
 
-        case RGBX8:
-            return DXGI_FORMAT_R8G8B8A8_UNORM;
-
-        case Invalid:
+        case RSPixelFormat::RS_FMT_INVALID:
         default:
             return DXGI_FORMAT_UNKNOWN;
         }
@@ -49,9 +36,9 @@ namespace NativeRenderingPlugin
         D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0
     };
 
-    ID3D12Resource* CreateTexture(const LPCWSTR name, int width, int height, PixelFormat pixelFormat)
+    ID3D12Resource* CreateTexture(const LPCWSTR name, int width, int height, RSPixelFormat pixelFormat, bool sRGB)
     {
-        const DXGI_FORMAT dxFormat = ToDXFormat(pixelFormat);
+        const DXGI_FORMAT dxFormat = ToDXFormat(pixelFormat, sRGB);
         if (dxFormat == DXGI_FORMAT_UNKNOWN)
         {
             s_Logger->LogError("Unsupported PixelFormat: ", pixelFormat);
