@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Microsoft.Win32;
+using Disguise.RenderStream.Utils;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -681,23 +681,24 @@ namespace Disguise.RenderStream
                 throw new InvalidOperationException($"Unsupported GraphicsDeviceType: {PluginEntry.instance.GraphicsDeviceType}. Only Direct3D11 and Direct3D12 are supported.");
             }
             
-            RegistryKey d3Key = Registry.CurrentUser.OpenSubKey("Software");
-            if (d3Key != null)
-            {
-                d3Key = d3Key.OpenSubKey("d3 Technologies");
-                if (d3Key != null)
-                {
-                    d3Key = d3Key.OpenSubKey("d3 Production Suite");
-                }
-            }
+            var result = RegistryWrapper.ReadRegKey(
+                RegistryWrapper.HKEY_CURRENT_USER,
+                @"Software\d3 Technologies\d3 Production Suite",
+                "exe path", 
+                out var d3ExePath);
 
-            if (d3Key == null)
+            if (result == RegistryWrapper.ReadRegKeyResult.OpenFailed)
             {
                 Debug.LogError(string.Format("Failed to find path to {0}.dll. d3 Not installed?", _dllName));
                 return;
             }
+            
+            if (result != RegistryWrapper.ReadRegKeyResult.Success)
+            {
+                Debug.LogError(string.Format("Failed to find path to {0}.dll. Error: {1}", _dllName, result));
+                return;
+            }
 
-            string d3ExePath = d3Key.GetValue("exe path").ToString();
             d3ExePath = d3ExePath.Replace(@"\\", @"\");
             int endSeparator = d3ExePath.LastIndexOf(Path.DirectorySeparatorChar);
             if (endSeparator != d3ExePath.Length - 1)
