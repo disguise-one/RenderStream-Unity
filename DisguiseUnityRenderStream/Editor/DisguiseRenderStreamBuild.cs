@@ -5,17 +5,23 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace Disguise.RenderStream
 {
-    class DisguiseRenderStreamBuildProcessor  : UnityEditor.Build.IPostprocessBuildWithReport
+    class DisguiseRenderStreamBuildPreProcessor : UnityEditor.Build.IPreprocessBuildWithReport
     {
         public int callbackOrder { get; set; } = 0;
         
-        public void OnPostprocessBuild(BuildReport report)
+        public void OnPreprocessBuild(BuildReport report)
         {
+            CheckVsync();
+            
+            AddAlwaysIncludedShader(BlitExtended.ShaderName);
+            AddAlwaysIncludedShader(DepthCopy.ShaderName);
+            
             var target = report.summary.platform;
             
             if (target != BuildTarget.StandaloneWindows64)
@@ -29,9 +35,64 @@ namespace Disguise.RenderStream
                 Debug.LogError("DisguiseRenderStream: RenderStream DLL not available, could not save schema");
                 return;
             }
+        }
 
-            CheckVsync();
-            
+        static void CheckVsync()
+        {
+            if (DisguiseFramerateManager.Enabled && DisguiseFramerateManager.VSyncIsEnabled)
+            {
+                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}{nameof(QualitySettings.vSyncCount)} is currently enabled. For best performance disable vSync in the project settings.");
+            }
+        }
+        
+        /// <summary>
+        /// Ensure the proper runtime availability of the shader name.
+        /// </summary>
+        /// <remarks>
+        /// Based on logic exposed here:
+        /// https://forum.unity.com/threads/modify-always-included-shaders-with-pre-processor.509479/
+        /// </remarks>
+        /// <param name="shaderName">The name of the shader to validate.</param>
+        static void AddAlwaysIncludedShader(string shaderName)
+        {
+            var shader = Shader.Find(shaderName);
+            if (shader == null)
+                return;
+
+            var graphicsSettingsObj = AssetDatabase.LoadAssetAtPath<GraphicsSettings>("ProjectSettings/GraphicsSettings.asset");
+            var serializedObject = new SerializedObject(graphicsSettingsObj);
+            var arrayProp = serializedObject.FindProperty("m_AlwaysIncludedShaders");
+            var hasShader = false;
+            for (int i = 0; i < arrayProp.arraySize; ++i)
+            {
+                var arrayElem = arrayProp.GetArrayElementAtIndex(i);
+                if (shader == arrayElem.objectReferenceValue)
+                {
+                    hasShader = true;
+                    break;
+                }
+            }
+
+            if (!hasShader)
+            {
+                var arrayIndex = arrayProp.arraySize;
+                arrayProp.InsertArrayElementAtIndex(arrayIndex);
+                var arrayElem = arrayProp.GetArrayElementAtIndex(arrayIndex);
+                arrayElem.objectReferenceValue = shader;
+
+                serializedObject.ApplyModifiedProperties();
+
+                AssetDatabase.SaveAssets();
+            }
+        }
+    }
+
+    class DisguiseRenderStreamBuildPostProcessor  : UnityEditor.Build.IPostprocessBuildWithReport
+    {
+        public int callbackOrder { get; set; } = 0;
+        
+        public void OnPostprocessBuild(BuildReport report)
+        {
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
             var schema = new ManagedSchema
             {
@@ -110,14 +171,6 @@ namespace Disguise.RenderStream
                 .SelectMany(p => p.exposedParameters()));
             
             currentScene.parameters = parameters.ToArray();
-        }
-
-        static void CheckVsync()
-        {
-            if (DisguiseFramerateManager.Enabled && DisguiseFramerateManager.VSyncIsEnabled)
-            {
-                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}{nameof(QualitySettings.vSyncCount)} is currently enabled. For best performance disable vSync in the project settings.");
-            }
         }
     }
 }

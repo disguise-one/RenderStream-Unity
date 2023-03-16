@@ -32,6 +32,11 @@ public class RenderingPipelineDefines
             AddDefine("UNITY_PIPELINE_HDRP");
         else
             RemoveDefine("UNITY_PIPELINE_HDRP");
+        
+        if (PlayerSettings.useHDRDisplay)
+            AddDefine("DISGUISE_UNITY_USE_HDR_DISPLAY");
+        else
+            RemoveDefine("DISGUISE_UNITY_USE_HDR_DISPLAY");
     }
 
     static PipelineType GetPipeline()
