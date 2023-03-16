@@ -30,11 +30,12 @@ namespace Disguise.RenderStream
         
         public override int GetHashCode()
         {
-            return HashCode.Combine(
+            return HashCode.Combine
+            (
                 Width,
                 Height,
                 (int)Format,
-                Linear
+                Linear ? 1 : 0
             );
         }
 
@@ -180,7 +181,7 @@ namespace Disguise.RenderStream
         {
             DebugLog($"Created texture: {descriptor}");
 
-            return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, descriptor.Linear, null);
+            return DisguiseTextures.CreateTexture(descriptor.Width, descriptor.Height, descriptor.Format, !descriptor.Linear, null);
         }
 
         void DestroyTexture(Texture2D texture)

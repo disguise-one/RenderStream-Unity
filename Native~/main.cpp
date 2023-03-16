@@ -3,6 +3,8 @@
 #include "Unity/IUnityInterface.h"
 #include "Unity/IUnityGraphics.h"
 
+#include "Disguise/d3renderstream.h"
+
 #include "Events.h"
 #include "Logger.h"
 #include "DX12System.h"
@@ -149,7 +151,7 @@ GetD3D12CommandQueue()
 }
 
 extern "C" UNITY_INTERFACE_EXPORT void*
-CreateNativeTexture(const LPCWSTR name, int width, int height, int pixelFormat)
+CreateNativeTexture(const LPCWSTR name, int width, int height, RSPixelFormat pixelFormat, bool sRGB)
 {
     if (!IsInitialized())
     {
@@ -157,5 +159,5 @@ CreateNativeTexture(const LPCWSTR name, int width, int height, int pixelFormat)
         return nullptr;
     }
 
-    return CreateTexture(name, width, height, static_cast<PixelFormat>(pixelFormat));
+    return CreateTexture(name, width, height, pixelFormat, sRGB);
 }

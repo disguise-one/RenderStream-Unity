@@ -203,7 +203,6 @@ namespace Disguise.RenderStream
             Camera[] templateCameras = getTemplateCameras();
             const int cullUIOnly = ~(1 << 5);
             
-            ScratchRTManager.Instance.Clear();
             ScratchTexture2DManager.Instance.Clear();
 
             for (int i = 0; i < Streams.Length; ++i)
