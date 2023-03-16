@@ -7,10 +7,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Microsoft.Win32;
+using Disguise.RenderStream.Utils;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
@@ -35,32 +36,31 @@ namespace Disguise.RenderStream
 
         public static PluginEntry instance { get { return Nested.instance; } }
 
+        // Should match NativeRenderingPlugin::ToDXFormat in the native plugin's DX12Texture.h
+        public static GraphicsFormat ToGraphicsFormat(RSPixelFormat fmt, bool sRGB)
+        {
+            // All textures are expected in the normalized 0-1 range.
+            // CUDA interop expects an alpha channel.
+            return fmt switch
+            {
+                RSPixelFormat.RS_FMT_BGRA8 or RSPixelFormat.RS_FMT_BGRX8 => sRGB ? GraphicsFormat.B8G8R8A8_SRGB : GraphicsFormat.B8G8R8A8_UNorm,
+                RSPixelFormat.RS_FMT_RGBA32F => GraphicsFormat.R32G32B32_SFloat, // Has no UNorm format
+                RSPixelFormat.RS_FMT_RGBA16 => GraphicsFormat.R16G16B16A16_UNorm,
+                RSPixelFormat.RS_FMT_RGBA8 or RSPixelFormat.RS_FMT_RGBX8 => sRGB ? GraphicsFormat.R8G8B8A8_SRGB : GraphicsFormat.R8G8B8A8_UNorm,    
+                _ => throw new ArgumentOutOfRangeException()
+            };
+        }
+        
         public static TextureFormat ToTextureFormat(RSPixelFormat fmt)
         {
-            switch (fmt)
+            return fmt switch
             {
-                case RSPixelFormat.RS_FMT_BGRA8: return TextureFormat.BGRA32;
-                case RSPixelFormat.RS_FMT_BGRX8: return TextureFormat.BGRA32;
-                case RSPixelFormat.RS_FMT_RGBA32F: return TextureFormat.RGBAFloat;
-                case RSPixelFormat.RS_FMT_RGBA16: return TextureFormat.RGBAFloat;
-                case RSPixelFormat.RS_FMT_RGBA8: return TextureFormat.RGBA32;
-                case RSPixelFormat.RS_FMT_RGBX8: return TextureFormat.RGBA32;
-                default: throw new ArgumentOutOfRangeException();
-            }
-        }
-
-        public static RenderTextureFormat ToRenderTextureFormat(RSPixelFormat fmt)
-        {
-            switch (fmt)
-            {
-                case RSPixelFormat.RS_FMT_BGRA8: return RenderTextureFormat.BGRA32;
-                case RSPixelFormat.RS_FMT_BGRX8: return RenderTextureFormat.BGRA32;
-                case RSPixelFormat.RS_FMT_RGBA32F: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBA16: return RenderTextureFormat.ARGBFloat;
-                case RSPixelFormat.RS_FMT_RGBA8: return RenderTextureFormat.ARGB32;
-                case RSPixelFormat.RS_FMT_RGBX8: return RenderTextureFormat.ARGB32;
-                default: throw new ArgumentOutOfRangeException();
-            }
+                RSPixelFormat.RS_FMT_BGRA8 or RSPixelFormat.RS_FMT_BGRX8 => TextureFormat.BGRA32,
+                RSPixelFormat.RS_FMT_RGBA32F => TextureFormat.RGBAFloat,
+                RSPixelFormat.RS_FMT_RGBA16 => TextureFormat.RGBAHalf,
+                RSPixelFormat.RS_FMT_RGBA8 or RSPixelFormat.RS_FMT_RGBX8 => TextureFormat.RGBA32,
+                _ => throw new ArgumentOutOfRangeException()
+            };
         }
 
         // isolated functions, do not require init prior to use
@@ -681,23 +681,24 @@ namespace Disguise.RenderStream
                 throw new InvalidOperationException($"Unsupported GraphicsDeviceType: {PluginEntry.instance.GraphicsDeviceType}. Only Direct3D11 and Direct3D12 are supported.");
             }
             
-            RegistryKey d3Key = Registry.CurrentUser.OpenSubKey("Software");
-            if (d3Key != null)
-            {
-                d3Key = d3Key.OpenSubKey("d3 Technologies");
-                if (d3Key != null)
-                {
-                    d3Key = d3Key.OpenSubKey("d3 Production Suite");
-                }
-            }
+            var result = RegistryWrapper.ReadRegKey(
+                RegistryWrapper.HKEY_CURRENT_USER,
+                @"Software\d3 Technologies\d3 Production Suite",
+                "exe path", 
+                out var d3ExePath);
 
-            if (d3Key == null)
+            if (result == RegistryWrapper.ReadRegKeyResult.OpenFailed)
             {
                 Debug.LogError(string.Format("Failed to find path to {0}.dll. d3 Not installed?", _dllName));
                 return;
             }
+            
+            if (result != RegistryWrapper.ReadRegKeyResult.Success)
+            {
+                Debug.LogError(string.Format("Failed to find path to {0}.dll. Error: {1}", _dllName, result));
+                return;
+            }
 
-            string d3ExePath = d3Key.GetValue("exe path").ToString();
             d3ExePath = d3ExePath.Replace(@"\\", @"\");
             int endSeparator = d3ExePath.LastIndexOf(Path.DirectorySeparatorChar);
             if (endSeparator != d3ExePath.Length - 1)

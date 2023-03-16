@@ -6,7 +6,7 @@ namespace Disguise.RenderStream
 {
     /// <summary>
     /// Configures the <see cref="GameObject"/>'s camera for offscreen rendering and provides access to its
-    /// color and optionally its depth buffer.
+    /// color and optionally its depth buffer. Also handles color space conversions and Y flip.
     ///
     /// <remarks>
     /// The camera will no longer render to the local screen.
@@ -18,109 +18,23 @@ namespace Disguise.RenderStream
     [RequireComponent(typeof(Camera))]
     public class CameraCapture : MonoBehaviour
     {
-        [Serializable]
-        public struct CameraCaptureDescription : IEquatable<CameraCaptureDescription>
+        public readonly struct Capture
         {
-            public static CameraCaptureDescription Default = new CameraCaptureDescription()
-            {
-                m_width = 0,
-                m_height = 0,
-                m_colorFormat = RenderTextureFormat.ARGB32,
-                m_msaaSamples = 1,
-                m_depthBufferBits = 24,
-                m_copyDepth = false,
-                m_depthCopyFormat = RenderTextureFormat.RFloat,
-                m_depthCopyMode = DepthCopy.Mode.Linear01
-            };
-            
-            public int m_width;
-            public int m_height;
-            public RenderTextureFormat m_colorFormat;
-            public int m_msaaSamples;
-            public int m_depthBufferBits;
-            public bool m_copyDepth;
-            public RenderTextureFormat m_depthCopyFormat;
-            public DepthCopy.Mode m_depthCopyMode;
-
-            public bool IsValid => m_width > 0 && m_height > 0;
-
-            public bool CameraTextureIsMSAA => m_msaaSamples > 1;
-
-            /// <summary>
-            /// Describes the texture to use for <see cref="Camera.targetTexture"/>.
-            /// </summary>
-            public RenderTextureDescriptor GetCameraDescriptor()
-            {
-                var descriptor = new RenderTextureDescriptor(m_width, m_height, m_colorFormat, m_depthBufferBits, 1);
-                descriptor.msaaSamples = m_msaaSamples;
-                return descriptor;
-            }
-
-            /// <summary>
-            /// Describes the texture to use for storing the depth capture.
-            /// </summary>
-            public RenderTextureDescriptor GetDepthCopyDescriptor()
-            {
-                return new RenderTextureDescriptor(m_width, m_height, m_depthCopyFormat, 0, 1);
-            }
-            
-            public override bool Equals(object obj)
-            {
-                return obj is CameraCaptureDescription other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                return HashCode.Combine(
-                    m_width,
-                    m_height,
-                    (int)m_colorFormat,
-                    m_msaaSamples,
-                    m_depthBufferBits,
-                    m_copyDepth,
-                    (int)m_depthCopyFormat,
-                    (int)m_depthCopyMode
-                );
-            }
-
-            public bool Equals(CameraCaptureDescription other)
-            {
-                return
-                    m_width == other.m_width &&
-                    m_height == other.m_height &&
-                    m_colorFormat == other.m_colorFormat &&
-                    m_msaaSamples == other.m_msaaSamples &&
-                    m_depthBufferBits == other.m_depthBufferBits &&
-                    m_copyDepth == other.m_copyDepth &&
-                    m_depthCopyFormat == other.m_depthCopyFormat &&
-                    m_depthCopyMode == other.m_depthCopyMode;
-            }
-            
-            public static bool operator ==(CameraCaptureDescription lhs, CameraCaptureDescription rhs) => lhs.Equals(rhs);
-
-            public static bool operator !=(CameraCaptureDescription lhs, CameraCaptureDescription rhs) => !(lhs == rhs);
-        }
-
-        public struct Capture
-        {
-            RenderTexture m_cameraTexture;
-            RenderTexture m_depthTexture;
-
             internal Capture(RenderTexture cameraTexture, RenderTexture depthTexture)
             {
-                m_cameraTexture = cameraTexture;
-                m_depthTexture = depthTexture;
+                this.cameraTexture = cameraTexture;
+                this.depthTexture = depthTexture;
             }
             
             /// <summary>
             /// Refers to <see cref="CameraCapture.cameraTexture"/>.
             /// </summary>
-            public RenderTexture cameraTexture => m_cameraTexture;
-        
+            public RenderTexture cameraTexture { get; }
+
             /// <summary>
             /// Refers to <see cref="CameraCapture.depthTexture"/>.
             /// </summary>
-            public RenderTexture depthTexture => m_depthTexture;
+            public RenderTexture depthTexture { get; }
         }
 
         /// <summary>
@@ -140,10 +54,11 @@ namespace Disguise.RenderStream
         /// </para>
         ///
         /// <remarks>
-        /// To avoid unnecessary texture copies, this refers directly to <see cref="Camera.targetTexture"/>.
+        /// To avoid unnecessary texture copies, this can refer directly to <see cref="Camera.targetTexture"/> (depending on
+        /// <see cref="CameraCaptureDescription.m_autoFlipY"/> and <see cref="CameraCaptureDescription.m_colorSpace"/>).
         /// </remarks>
         /// </summary>
-        public RenderTexture cameraTexture => m_cameraTexture;
+        public RenderTexture cameraTexture => m_description.NeedsBlit ? m_cameraBlitTexture : m_cameraTexture;
         
         /// <summary>
         /// The captured depth texture. Its format is defined by <see cref="description"/>.
@@ -170,20 +85,20 @@ namespace Disguise.RenderStream
         [SerializeField]
         CameraCaptureDescription m_description = CameraCaptureDescription.Default;
 
-        DepthCopy m_depthCopy;
         Camera m_camera;
         RenderTexture m_cameraTexture;
+        RenderTexture m_cameraBlitTexture;
         RenderTexture m_depthTexture;
         CameraCaptureDescription m_lastDescription;
         
 #if DEBUG
         bool m_HasSetSecondNames;        
 #endif
+        
+        const string k_blitProfilerTag = "Camera Capture Blit";
 
         void Awake()
         {
-            m_depthCopy = new DepthCopy();
-            
             m_camera = GetComponent<Camera>();
             
             CreateResources(m_description);
@@ -196,9 +111,6 @@ namespace Disguise.RenderStream
 #endif
             
             RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
-
-            if (m_depthCopy == null)
-                m_depthCopy = new DepthCopy(); // Can be lost after domain reload 
         }
 
         void OnDisable()
@@ -230,9 +142,9 @@ namespace Disguise.RenderStream
         {
             m_lastDescription = desc;
             
-            if (!desc.IsValid)
+            if (!desc.IsValid(out var message))
             {
-                Debug.LogWarning($"{nameof(CameraCapture)} has invalid description, will be disabled.");
+                Debug.LogWarning($"{nameof(CameraCapture)} is disabled because of an invalid configuration: {message}");
                 return;
             }
 
@@ -240,6 +152,12 @@ namespace Disguise.RenderStream
             m_cameraTexture = new RenderTexture(cameraDesc);
             
             m_camera.targetTexture = m_cameraTexture;
+
+            if (desc.NeedsBlit)
+            {
+                var cameraBlitDesc = desc.GetCameraBlitDescriptor();
+                m_cameraBlitTexture = new RenderTexture(cameraBlitDesc);
+            }
 
             if (desc.m_copyDepth)
             {
@@ -249,6 +167,8 @@ namespace Disguise.RenderStream
             
 #if DEBUG
             m_cameraTexture.name = $"{nameof(CameraCapture)} Camera Texture Initial {m_cameraTexture.width}x{m_cameraTexture.height}";
+            if (m_cameraBlitTexture != null)
+                m_cameraBlitTexture.name = $"{nameof(CameraCapture)} Camera Blit Texture Initial {m_cameraBlitTexture.width}x{m_cameraBlitTexture.height}";
             if (m_depthTexture != null)
                 m_depthTexture.name = $"{nameof(CameraCapture)} Depth Copy Texture Initial {m_depthTexture.width}x{m_depthTexture.height}";
             m_HasSetSecondNames = false;
@@ -259,22 +179,49 @@ namespace Disguise.RenderStream
         {
             if (m_cameraTexture != null)
                 m_cameraTexture.Release();
+            if (m_cameraBlitTexture != null)
+                m_cameraBlitTexture.Release();
             if (m_depthTexture != null)
                 m_depthTexture.Release();
+
+            m_cameraTexture = null;
+            m_cameraBlitTexture = null;
+            m_depthTexture = null;
         }
 
         void OnEndCameraRendering(ScriptableRenderContext ctx, Camera camera)
         {
             if (camera != m_camera)
                 return;
+            
+            // Disabled because of invalid configuration?
+            if (m_cameraTexture == null)
+                return;
 
+            var needsBlit = m_description.NeedsBlit;
+            
+            if (needsBlit)
+            {
+                var cmd = CommandBufferPool.Get(k_blitProfilerTag);
+                
+                BlitExtended.Instance.BlitTexture(cmd,
+                    m_cameraTexture,
+                    m_cameraBlitTexture,
+                    BlitExtended.GetSRGBConversion(m_description.SRGBConversion),
+                    m_description.NeedsFlipY ? ScaleBias.FlippedY : ScaleBias.Identity);
+                
+                ctx.ExecuteCommandBuffer(cmd);
+                ctx.Submit();
+                
+                CommandBufferPool.Release(cmd);
+            }
+            
             if (m_description.m_copyDepth)
             {
-                m_depthCopy.mode = m_description.m_depthCopyMode;
-                m_depthCopy.Execute(ctx, m_depthTexture);
+                DepthCopy.instance.Execute(ctx, m_depthTexture, m_description.m_depthCopyMode);
             }
 
-            onCapture.Invoke(ctx, new Capture(m_cameraTexture, m_depthTexture));
+            onCapture.Invoke(ctx, new Capture(needsBlit ? m_cameraBlitTexture : m_cameraTexture, m_depthTexture));
 
 #if DEBUG
             // A RenderTexture holds MSAA and resolved versions of its textures.
@@ -282,6 +229,8 @@ namespace Disguise.RenderStream
             if (!m_HasSetSecondNames)
             {
                 m_cameraTexture.name = $"{nameof(CameraCapture)} Camera Texture {m_cameraTexture.width}x{m_cameraTexture.height}";
+                if (m_cameraBlitTexture != null)
+                    m_cameraBlitTexture.name = $"{nameof(CameraCapture)} Camera Blit Texture {m_cameraBlitTexture.width}x{m_cameraBlitTexture.height}";
                 if (m_depthTexture != null)
                     m_depthTexture.name = $"{nameof(CameraCapture)} Depth Copy Texture {m_depthTexture.width}x{m_depthTexture.height}";
                 m_HasSetSecondNames = true;

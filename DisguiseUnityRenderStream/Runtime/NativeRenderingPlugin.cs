@@ -102,11 +102,11 @@ namespace Disguise.RenderStream
             return IntPtr.Zero;
         }
         
-        public static IntPtr CreateNativeTexture(string name, int width, int height, PixelFormat pixelFormat)
+        public static IntPtr CreateNativeTexture(string name, int width, int height, RSPixelFormat pixelFormat, bool sRGB)
         {
             if (IsInitialized())
             {
-                return NativeRenderingPluginNative.CreateNativeTexture(name, width, height, (int)pixelFormat);
+                return NativeRenderingPluginNative.CreateNativeTexture(name, width, height, pixelFormat, sRGB);
             }
             return IntPtr.Zero;
         }
@@ -136,7 +136,7 @@ namespace Disguise.RenderStream
             return IntPtr.Zero;
         }
         
-        public static IntPtr CreateNativeTexture(string name, int width, int height, PixelFormat pixelFormat)
+        public static IntPtr CreateNativeTexture(string name, int width, int height, RSPixelFormat pixelFormat, bool sRGB)
         {
             return IntPtr.Zero;
         }
@@ -164,7 +164,7 @@ namespace Disguise.RenderStream
         public static extern IntPtr GetD3D12CommandQueue();
 
         [DllImport(PluginName)]
-        public static extern IntPtr CreateNativeTexture([MarshalAs(UnmanagedType.LPWStr)] string name, int width, int height, int pixelFormat);
+        public static extern IntPtr CreateNativeTexture([MarshalAs(UnmanagedType.LPWStr)] string name, int width, int height, RSPixelFormat pixelFormat, bool sRGB);
     }
 #endif
     

@@ -2,167 +2,59 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// Strategy calculations for the <see cref="Blitter"/> API.
-    /// </summary>
-    public static class PresenterStrategy
-    {
-        /// <summary>
-        /// A strategy to handle the size and aspect ratio differences between two surfaces.
-        /// </summary>
-        public enum Strategy
-        {
-            /// <summary>
-            /// Stretches the source to have the same size as the destination.
-            /// The aspect ratio may be lost.
-            /// </summary>
-            Stretch,
-            
-            /// <summary>
-            /// The source isn't scaled at all but it's centered within the destination.
-            /// </summary>
-            NoResize,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio so that the width matches the destination.
-            /// </summary>
-            FitWidth,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio so that the height matches the destination.
-            /// </summary>
-            FitHeight,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio to fill the destination.
-            /// It can't overflow but can leave black bars on the sides.
-            /// </summary>
-            Letterbox,
-            
-            /// <summary>
-            /// The source is scaled while conserving the aspect ratio to fill the destination.
-            /// It can overflow but won't leave black bars on the sides.
-            /// </summary>
-            Fill
-        }
-
-        /// <summary>
-        /// Computes a strategy for the <see cref="Blitter"/> API.
-        /// </summary>
-        /// <returns>A scale + bias vector</returns>
-        public static Vector4 DoStrategy(Strategy strategy, Vector2 srcSize, Vector2 dstSize)
-        {
-            switch (strategy)
-            {
-                case Strategy.Stretch:
-                    return Stretch(srcSize, dstSize);
-                case Strategy.NoResize:
-                    return NoResize(srcSize, dstSize);
-                case Strategy.FitWidth:
-                    return FitWidth(srcSize, dstSize);
-                case Strategy.FitHeight:
-                    return FitHeight(srcSize, dstSize);
-                case Strategy.Letterbox:
-                    return Letterbox(srcSize, dstSize);
-                case Strategy.Fill:
-                    return Fill(srcSize, dstSize);
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-        
-        static Vector4 Stretch(Vector2 srcSize, Vector2 dstSize)
-        {
-            return new Vector4(1f, 1f, 0f, 0f);
-        }
-        
-        static Vector4 NoResize(Vector2 srcSize, Vector2 dstSize)
-        {
-            var scale = srcSize / dstSize;
-            var offset = CenterUVOffset(scale);
-            
-            return new Vector4(scale.x, scale.y, offset.x, offset.y);
-        }
-        
-        static Vector4 FitWidth(Vector2 srcSize, Vector2 dstSize)
-        {
-            var yScale = InverseAspectRatio(srcSize) * AspectRatio(dstSize);
-            var yOffset = CenterUVOffset(yScale);
-            
-            return new Vector4(1f, yScale, 0f, yOffset);
-        }
-        
-        static Vector4 FitHeight(Vector2 srcSize, Vector2 dstSize)
-        {
-            var xScale = AspectRatio(srcSize) * InverseAspectRatio(dstSize);
-            var xOffset = CenterUVOffset(xScale);
-            
-            return new Vector4(xScale, 1f, xOffset, 0f);
-        }
-        
-        static Vector4 Letterbox(Vector2 srcSize, Vector2 dstSize)
-        {
-            var scrAspect = AspectRatio(srcSize);
-            var dstAspect = AspectRatio(dstSize);
-
-            if (scrAspect > dstAspect)
-                return FitWidth(srcSize, dstSize);
-            else
-                return FitHeight(srcSize, dstSize);
-        }
-        
-        static Vector4 Fill(Vector2 srcSize, Vector2 dstSize)
-        {
-            var scrAspect = AspectRatio(srcSize);
-            var dstAspect = AspectRatio(dstSize);
-
-            if (scrAspect < dstAspect)
-                return FitWidth(srcSize, dstSize);
-            else
-                return FitHeight(srcSize, dstSize);
-        }
-
-        static float AspectRatio(Vector2 size)
-        {
-            return size.x / size.y;
-        }
-        
-        static float InverseAspectRatio(Vector2 size)
-        {
-            return size.y / size.x;
-        }
-
-        static float CenterUVOffset(float scale)
-        {
-            return (1f - scale) / 2f;
-        }
-        
-        static Vector2 CenterUVOffset(Vector2 scale)
-        {
-            return (Vector2.one - scale) / 2f;
-        }
-    }
-    
-    /// <summary>
     /// <para>
     /// Blits a texture to the local screen.
-    /// A number of strategies are available to handle the size and aspect ratio differences between the two surfaces.
+    /// A number of <see cref="BlitStrategy.Strategy">strategies</see> are available to handle
+    /// the size and aspect ratio differences between the two surfaces.
     /// </para>
     /// 
     /// <para>
-    /// <see cref="PresenterInput"/> is responsible for adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/>
-    /// mouse coordinates to account for the blit.
+    /// <see cref="UITKInputForPresenter"/> and <see cref="UGUIInputForPresenter"/> are responsible for
+    /// adjusting the <see cref="UnityEngine.EventSystems.EventSystem"/> mouse coordinates to account for the blit.
     /// </para>
     ///
-    /// <remarks>Assumes that the local screen is the primary display. Modify this class for local multi-monitor specifics.</remarks>
+    /// <remarks>
+    /// Assumes that the local screen is the <see cref="Display.main">main display</see>.
+    /// Modify this class for local multi-monitor specifics.
+    /// Doesn't support HDR display output.
+    /// </remarks>
     /// </summary>
     [ExecuteAlways]
-    public class Presenter : MonoBehaviour
+    class Presenter : MonoBehaviour
     {
+        /// <summary>
+        /// The color space of the <see cref="source"/>'s texture.
+        /// </summary>
+        public enum SourceColorSpace
+        {
+            /// <summary>
+            /// Blit directly without any color space conversions.
+            /// </summary>
+            Unspecified = -2,
+            
+            /// <summary>
+            /// Detect the color space based on the <see cref="source"/>'s texture's <see cref="GraphicsFormat"/>.
+            /// sRGB formats are assumed to contain sRGB data, while other formats are assumed to contain linear data.
+            /// </summary>
+            Auto = -1,
+            
+            /// <summary>
+            /// sRGB color primaries + linear transfer function
+            /// </summary>
+            Linear = CameraCaptureDescription.ColorSpace.Linear,
+            
+            /// <summary>
+            /// sRGB color primaries + sRGB transfer function
+            /// </summary>
+            sRGB = CameraCaptureDescription.ColorSpace.sRGB,
+        }
+        
         const string k_profilerTag = "Disguise Presenter";
         const string k_profilerClearTag = "Disguise Presenter Clear";
 
@@ -170,17 +62,35 @@ namespace Disguise.RenderStream
         RenderTexture m_source;
         
         [SerializeField]
-        PresenterStrategy.Strategy m_strategy = PresenterStrategy.Strategy.Fill;
+        SourceColorSpace m_sourceColorSpace = SourceColorSpace.Auto;
+        
+        [SerializeField]
+        BlitStrategy.Strategy m_strategy = BlitStrategy.Strategy.Fill;
 
+        [SerializeField]
+        bool m_autoFlipY = true;
+        
         [SerializeField]
         bool m_clearScreen;
         
         Backend m_backEnd;
 
-        public PresenterStrategy.Strategy strategy
+        /// <summary>
+        /// Describes how to handle the size and aspect ratio differences between the <see cref="source"/> and the screen.
+        /// </summary>
+        public BlitStrategy.Strategy strategy
         {
             get => m_strategy;
             set => m_strategy = value;
+        }
+        
+        /// <summary>
+        /// On platforms such as DX12 the texture needs to be flipped before being presented to the screen.
+        /// </summary>
+        public bool autoFlipY
+        {
+            get => m_autoFlipY;
+            set => m_autoFlipY = value;
         }
 
         /// <summary>
@@ -190,6 +100,16 @@ namespace Disguise.RenderStream
         {
             get => m_source;
             protected set => m_source = value;
+        }
+        
+        /// <summary>
+        /// The color space of the <see cref="source"/> texture.
+        /// <see cref="SourceColorSpace.Auto"/> should manage most cases.
+        /// </summary>
+        public SourceColorSpace sourceColorSpace
+        {
+            get => m_sourceColorSpace;
+            set => m_sourceColorSpace = value;
         }
 
         /// <summary>
@@ -212,6 +132,10 @@ namespace Disguise.RenderStream
         /// </summary>
         protected virtual void OnEnable()
         {
+#if DISGUISE_UNITY_USE_HDR_DISPLAY
+            Debug.LogWarning($"{nameof(Presenter)} only supports SDR output, but HDR Display Output is allowed in the Project Settings.");
+#endif
+            
 #if UNITY_EDITOR
             m_backEnd = new EditorBackend(this);
 #else
@@ -233,40 +157,61 @@ namespace Disguise.RenderStream
         }
         
         /// <summary>
-        /// Get the coordinates that would be passed to the <see cref="Blitter"/> API.
+        /// Get the destination UV transformations to pass to the <see cref="Blitter"/> API.
         /// </summary>
-        /// <param name="flipY"></param>
-        /// <returns>A scale + bias vector</returns>
-        public Vector4 GetScaleBias(bool flipY)
+        /// <param name="skipAutoFlip">
+        /// When true, the return value isn't adjusted for the graphics API's UV representation.
+        /// This is useful for UI which only needs a CPU representation of the bounds.
+        /// </param>
+        public ScaleBias GetScaleBias(bool skipAutoFlip)
         {
-            var scaleBias = PresenterStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
+            var scaleBias = BlitStrategy.DoStrategy(m_strategy, sourceSize, targetSize);
 
-            if (flipY)
-            {
-                scaleBias.y = -scaleBias.y;
-                scaleBias.w = 1f - scaleBias.w;
-            }
+            if (autoFlipY && !skipAutoFlip && SystemInfo.graphicsUVStartsAtTop)
+                scaleBias = ScaleBias.FlipY(scaleBias);
 
             return scaleBias;
         }
 
+        /// <summary>
+        /// Resolves the color space conversion to apply based on
+        /// the source texture and the main display's backbuffer.
+        /// </summary>
+        BlitExtended.ColorSpaceConversion GetColorSpaceConversion()
+        {
+            if (m_sourceColorSpace == SourceColorSpace.Unspecified)
+                return BlitExtended.ColorSpaceConversion.None;
+            
+            var sourceDescriptor = m_sourceColorSpace switch
+            {
+                SourceColorSpace.Auto => SRGBConversions.GetAutoDescriptor(m_source),
+                SourceColorSpace.Linear => new SRGBConversions.Descriptor(SRGBConversions.Space.Linear, SRGBConversions.GetTextureFormat(m_source)),
+                SourceColorSpace.sRGB => new SRGBConversions.Descriptor(SRGBConversions.Space.sRGB, SRGBConversions.GetTextureFormat(m_source)),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            var mainDisplayDescriptor = SRGBConversions.GetDisplayDescriptor(Display.main);
+            var conversion = SRGBConversions.GetConversion(sourceDescriptor, mainDisplayDescriptor);
+            return BlitExtended.GetSRGBConversion(conversion);
+        }
+
         void IssueCommands(CommandBuffer cmd)
         {
-            RenderTexture screen = default;
-            CoreUtils.SetRenderTarget(cmd, screen);
+            const RenderTexture mainDisplay = default;
+            CoreUtils.SetRenderTarget(cmd, mainDisplay);
             
-            var srcScaleBias = new Vector4(1f, 1f, 0f, 0f);
-            var dstScaleBias = GetScaleBias(true); // Flip Y for screen
+            var srcScaleBias = ScaleBias.Identity;
+            var dstScaleBias = GetScaleBias(false);
             
-            Blitter.BlitQuad(cmd, m_source, srcScaleBias, dstScaleBias, 0, true);
+            BlitExtended.Instance.BlitQuad(cmd, m_source, GetColorSpaceConversion(), srcScaleBias, dstScaleBias);
         }
         
         void ClearScreen()
         {
             CommandBuffer cmd = CommandBufferPool.Get(k_profilerClearTag);
 
-            RenderTexture screen = default;
-            CoreUtils.SetRenderTarget(cmd, screen);
+            const RenderTexture mainDisplay = default;
+            CoreUtils.SetRenderTarget(cmd, mainDisplay);
             cmd.ClearRenderTarget(true, true, Color.black);
             
             Graphics.ExecuteCommandBuffer(cmd);
@@ -276,7 +221,7 @@ namespace Disguise.RenderStream
         
         abstract class Backend
         {
-            protected Presenter m_presenter;
+            protected readonly Presenter m_presenter;
             
             protected Backend(Presenter presenter)
             {
