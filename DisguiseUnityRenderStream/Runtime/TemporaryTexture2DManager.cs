@@ -64,7 +64,7 @@ namespace Disguise.RenderStream
     ///
     /// <remarks>Lifetime doesn't grow during frames where no textures from the pool were used.</remarks>
     /// </summary>
-    class TemporaryTexture2DManager : AutoDisposable
+    class TemporaryTexture2DManager
     {
         struct FinishFrameRendering { }
         
@@ -111,19 +111,6 @@ namespace Disguise.RenderStream
         TemporaryTexture2DManager()
         {
             PlayerLoopExtensions.RegisterUpdate<PostLateUpdate.FinishFrameRendering, FinishFrameRendering>(OnFinishFrameRendering);
-        }
-
-        public override void Dispose()
-        {
-            foreach (var (_, item) in m_Items)
-            {
-                DestroyTexture(item.Texture);
-            }
-            
-            m_Items.Clear();
-            m_WasAccessedThisFrame = false;
-            
-            DebugLog($"Disposed textures");
         }
 
         public Texture2D Get(Texture2DDescriptor descriptor)

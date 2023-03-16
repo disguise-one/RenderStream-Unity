@@ -1,5 +1,3 @@
-using System;
-
 #if UNITY_EDITOR
 using UnityEditor;
 #else
@@ -8,7 +6,7 @@ using UnityEngine;
 
 namespace Disguise.RenderStream.Utils
 {
-    abstract class AutoDisposable : IDisposable
+    abstract class AutoDisposable
     {
         protected AutoDisposable()
         {
@@ -25,9 +23,6 @@ namespace Disguise.RenderStream.Utils
 #endif
         }
 
-        public virtual void Dispose()
-        {
-        
-        }
+        protected abstract void Dispose();
     }
 }

@@ -216,7 +216,7 @@ namespace Disguise.RenderStream
             }
         }
         
-        public override void Dispose()
+        protected override void Dispose()
         {
             m_Data.Dispose();
         }
