@@ -294,7 +294,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
     }
 #endif
 
-    public MemberInfo GetMemberInfoFromPropertyPath(string propertyPath)
+    MemberInfo GetMemberInfoFromPropertyPath(string propertyPath)
     {
         if (exposedObject == null)
             return null;
@@ -319,5 +319,37 @@ public class DisguiseRemoteParameters : MonoBehaviour
             }
         }
         return info;
+    }
+
+    public MemberInfo GetMemberInfo(ManagedRemoteParameter managedParameter)
+    {
+        var key = managedParameter.key;
+        
+        if (key.Length >= 2)
+        {
+            var underscore = key[key.Length - 2];
+            var suffix = key[key.Length - 1];
+
+            if (underscore == '_')
+            {
+                var isComposite = suffix switch
+                {
+                    'x' => true,
+                    'y' => true,
+                    'z' => true,
+                    'w' => true,
+                    'r' => true,
+                    'g' => true,
+                    'b' => true,
+                    'a' => true,
+                    _ => false
+                };
+                
+                if (isComposite)
+                    key = key.Substring(0, key.Length - 2);
+            }
+        }
+        
+        return GetMemberInfoFromPropertyPath(key.Substring(prefix.Length + 1));
     }
 }

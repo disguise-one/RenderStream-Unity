@@ -102,15 +102,16 @@ namespace Disguise.RenderStream
             SceneFields fields = m_SceneFields[sceneIndex];
             for (int j = 0; j < scene.parameters.Length;)
             {
-                string key = scene.parameters[j].key;
+                ManagedRemoteParameter managedParameter = scene.parameters[j];
+                string key = managedParameter.key;
                 DisguiseRemoteParameters remoteParams = Array.Find(remoteParameters, rp => key.StartsWith(rp.prefix));
                 ObjectField field = new ObjectField();
                 field.target = remoteParams.exposedObject;
-                field.info = null;
-                if (field.info == null && key.EndsWith("_x"))
+                
+                if (key.EndsWith("_x"))
                 {
                     string baseKey = key.Substring(0, key.Length - 2);
-                    field.info = remoteParams.GetMemberInfoFromPropertyPath(baseKey.Substring(remoteParams.prefix.Length + 1));
+                    field.info = remoteParams.GetMemberInfo(managedParameter);
                     Type fieldType = field.FieldType;
                     if ((fieldType == typeof(Vector2) || fieldType == typeof(Vector2Int)) &&
                         j + 1 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_y")
@@ -132,10 +133,10 @@ namespace Disguise.RenderStream
                         field.info = null;
                     }
                 }
-                if (field.info == null && key.EndsWith("_r"))
+                else if (key.EndsWith("_r"))
                 {
                     string baseKey = key.Substring(0, key.Length - 2);
-                    field.info = remoteParams.GetMemberInfoFromPropertyPath(baseKey.Substring(remoteParams.prefix.Length + 1));
+                    field.info = remoteParams.GetMemberInfo(managedParameter);
                     Type fieldType = field.FieldType;
                     if (fieldType == typeof(Color) &&
                         j + 3 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_g" && scene.parameters[j + 2].key == baseKey + "_b" && scene.parameters[j + 3].key == baseKey + "_a")
@@ -147,11 +148,13 @@ namespace Disguise.RenderStream
                         field.info = null;
                     }
                 }
+                
                 if (field.info == null)
                 {
-                    field.info = remoteParams.GetMemberInfoFromPropertyPath(key.Substring(remoteParams.prefix.Length + 1));
+                    field.info = remoteParams.GetMemberInfo(managedParameter);
                     ++j;
                 }
+                
                 if (field.info == null)
                 {
                     Debug.LogError("Unhandled remote parameter: " + key);
