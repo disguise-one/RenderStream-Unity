@@ -242,11 +242,11 @@ public class DisguiseRemoteParameters : MonoBehaviour
                 {
                     Vector3 v = property.quaternionValue.eulerAngles;
                     parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "x", "x", 
-                                               -360f, +360f, 0.5f, v.x, new string[0]));
+                                               -360f, +360f, 0.1f, v.x, new string[0]));
                     parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "y", "y", 
-                                               -360f, +360f, 0.5f, v.y, new string[0]));
+                                               -360f, +360f, 0.1f, v.y, new string[0]));
                     parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "z", "z", 
-                                               -360f, +360f, 0.5f, v.z, new string[0]));
+                                               -360f, +360f, 0.1f, v.z, new string[0]));
                 }
                 else if (property.propertyType == UnityEditor.SerializedPropertyType.Color)
                 {
