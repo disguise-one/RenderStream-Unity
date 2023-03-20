@@ -238,6 +238,16 @@ public class DisguiseRemoteParameters : MonoBehaviour
                     parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "w", "w", 
                                                min != null ? min.min : (range != null ? range.min : -1.0f), range != null ? range.max : +1.0f, 0.001f, v.w, new string[0]));
                 }
+                else if (property.propertyType == UnityEditor.SerializedPropertyType.Quaternion)
+                {
+                    Vector3 v = property.quaternionValue.eulerAngles;
+                    parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "x", "x", 
+                                               -360f, +360f, 0.5f, v.x, new string[0]));
+                    parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "y", "y", 
+                                               -360f, +360f, 0.5f, v.y, new string[0]));
+                    parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "z", "z", 
+                                               -360f, +360f, 0.5f, v.z, new string[0]));
+                }
                 else if (property.propertyType == UnityEditor.SerializedPropertyType.Color)
                 {
                     Color v = property.colorValue;

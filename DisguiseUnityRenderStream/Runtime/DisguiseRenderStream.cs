@@ -118,7 +118,7 @@ namespace Disguise.RenderStream
                     {
                         j += 2;
                     }
-                    else if ((fieldType == typeof(Vector3) || fieldType == typeof(Vector3Int)) &&
+                    else if ((fieldType == typeof(Vector3) || fieldType == typeof(Vector3Int) || fieldType == typeof(Quaternion)) &&
                              j + 2 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_y" && scene.parameters[j + 2].key == baseKey + "_z")
                     {
                         j += 3;
@@ -314,6 +314,13 @@ namespace Disguise.RenderStream
                             Vector4 v = new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
                             field.SetValue(v);
                             i += 4;
+                        }
+                        else if (fieldType == typeof(Quaternion))
+                        {
+                            Vector3 euler = new Vector3(parameters[i + 0], parameters[i + 1], parameters[i + 2]);
+                            Quaternion q = Quaternion.Euler(euler);
+                            field.SetValue(q);
+                            i += 3;
                         }
                         else if (fieldType == typeof(Color))
                         {
