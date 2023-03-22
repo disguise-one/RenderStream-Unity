@@ -146,7 +146,7 @@ namespace Disguise.RenderStream
                 return false;
             }
             
-            clampedIndex = Mathf.Clamp(index, 0, list.Count);
+            clampedIndex = Mathf.Clamp(index, 0, list.Count - 1);
             return true;
         }
     }
