@@ -164,6 +164,8 @@ namespace Disguise.RenderStream
                 else
                     fields.numerical.Add(field);
             }
+            
+            SceneLoaded?.Invoke();
         }
 
         protected void CreateStreams()
@@ -248,6 +250,8 @@ namespace Disguise.RenderStream
 
             LatestFrameData = new FrameData();
             Awaiting = false;
+            
+            StreamsChanged?.Invoke();
         }
     
         protected void ProcessFrameData(in FrameData receivedFrameData)
@@ -501,8 +505,27 @@ namespace Disguise.RenderStream
         }
 
         public static DisguiseRenderStream Instance { get; private set; }
+        
+        public static Action SceneLoaded { get; set; } = delegate { };
+        
+        public static Action StreamsChanged { get; set; } = delegate { };
 
         public StreamDescription[] Streams { get; private set; } = { };
+        
+        public IEnumerable<RenderTexture> InputTextures
+        {
+            get
+            {
+                if (LatestFrameData.scene > m_SceneFields.Length)
+                    return null;
+
+                var images = m_SceneFields[LatestFrameData.scene].images;
+                if (images == null)
+                    return null;
+
+                return images.Select(x => x.GetValue() as RenderTexture);
+            }
+        }
 
         public bool Awaiting { get; private set; }
 

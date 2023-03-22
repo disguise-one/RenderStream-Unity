@@ -92,7 +92,13 @@ namespace Disguise.RenderStream
             /// The source is scaled while conserving the aspect ratio to fill the destination.
             /// It can overflow but won't leave black bars on the sides.
             /// </summary>
-            Fill
+            Fill,
+            
+            /// <summary>
+            /// Behaves like <see cref="NoResize"/> if it fits inside the destination.
+            /// Otherwise behaves like <see cref="Letterbox"/>.
+            /// </summary>
+            Clamp
         }
 
         /// <summary>
@@ -115,6 +121,8 @@ namespace Disguise.RenderStream
                     return Letterbox(srcSize, dstSize);
                 case Strategy.Fill:
                     return Fill(srcSize, dstSize);
+                case Strategy.Clamp:
+                    return Clamp(srcSize, dstSize);
                 default:
                     throw new NotImplementedException();
             }
@@ -169,6 +177,14 @@ namespace Disguise.RenderStream
                 return FitWidth(srcSize, dstSize);
             else
                 return FitHeight(srcSize, dstSize);
+        }
+        
+        static ScaleBias Clamp(Vector2 srcSize, Vector2 dstSize)
+        {
+            if (srcSize.x > dstSize.x || srcSize.y > dstSize.y)
+                return Letterbox(srcSize, dstSize);
+            else
+                return NoResize(srcSize, dstSize);
         }
 
         static float AspectRatio(Vector2 size)

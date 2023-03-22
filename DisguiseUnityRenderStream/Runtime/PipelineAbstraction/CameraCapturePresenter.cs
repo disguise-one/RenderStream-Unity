@@ -41,17 +41,37 @@ namespace Disguise.RenderStream
         
         CameraCapture m_cameraCapture;
         
+        public CameraCapture cameraCapture
+        {
+            get => m_cameraCapture;
+            set
+            {
+                m_cameraCapture = value;
+                Assign(m_cameraCapture);
+            }
+        }
+        
         protected override void OnEnable()
         {
             base.OnEnable();
 
-            m_cameraCapture = GetComponent<CameraCapture>();
+            if (m_cameraCapture == null)
+                m_cameraCapture = GetComponent<CameraCapture>();
+        }
+        
+        void Update()
+        {
+            Assign(m_cameraCapture);
         }
 
-        protected override void Update()
+        void Assign(CameraCapture capture)
         {
-            base.Update();
-
+            if (capture == null)
+            {
+                source = null;
+                return;
+            }
+            
             if (m_cameraCapture.description.m_autoFlipY && autoFlipY)
             {
                 autoFlipY = false;
@@ -70,12 +90,12 @@ namespace Disguise.RenderStream
             switch (m_mode)
             {
                 case Mode.Color:
-                    source = m_cameraCapture.cameraTexture;
+                    source = capture.cameraTexture;
                     break;
                 
                 case Mode.Depth:
-                    Assert.IsTrue(m_cameraCapture.description.m_copyDepth);
-                    source = m_cameraCapture.depthTexture;
+                    Assert.IsTrue(capture.description.m_copyDepth);
+                    source = capture.depthTexture;
                     break;
                     
                 default:
