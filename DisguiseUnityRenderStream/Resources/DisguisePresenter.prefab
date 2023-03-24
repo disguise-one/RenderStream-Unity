@@ -97,10 +97,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c135780edf6e674ca031a94a2e3b4ee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Mode: 1
-  m_Index: 0
-  m_OutputResizeStrategy: 2
-  m_InputResizeStrategy: 4
+  m_Selected: 0
+  m_ResizeStrategy: 3
   m_OutputPresenter: {fileID: 360651681370543318}
   m_InputPresenter: {fileID: 360651682882557474}
 --- !u!114 &360651681440703411
@@ -121,12 +119,6 @@ MonoBehaviour:
   - exposed: 0
     fieldName: Script
     groupName: 
-  - exposed: 1
-    fieldName: Mode
-    groupName: Local Screen Presenter
-  - exposed: 1
-    fieldName: Index
-    groupName: Local Screen Presenter
   - exposed: 0
     fieldName: Output Presenter
     groupName: 
@@ -134,10 +126,10 @@ MonoBehaviour:
     fieldName: Input Presenter
     groupName: 
   - exposed: 1
-    fieldName: Output Resize Strategy
+    fieldName: Selected
     groupName: Local Screen Presenter
   - exposed: 1
-    fieldName: Input Resize Strategy
+    fieldName: Resize Strategy
     groupName: Local Screen Presenter
 --- !u!1 &360651682882557473
 GameObject:

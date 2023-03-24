@@ -1,7 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Disguise.RenderStream.Utils;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -9,13 +9,6 @@ namespace Disguise.RenderStream
 {
     class DisguisePresenter : MonoBehaviour
     {
-        public enum PresenterMode
-        {
-            Off,
-            Output,
-            Input
-        }
-
         public enum PresenterResizeStrategies
         {
             ActualSize,
@@ -25,28 +18,16 @@ namespace Disguise.RenderStream
             Clamp
         }
 
-        public PresenterMode Mode
+        public int Selected
         {
-            get => m_Mode;
-            set => m_Mode = value;
+            get => m_Selected;
+            set => m_Selected = value;
         }
         
-        public int Index
+        public PresenterResizeStrategies ResizeStrategy
         {
-            get => m_Index;
-            set => m_Index = value;
-        }
-        
-        public PresenterResizeStrategies OutputResizeStrategy
-        {
-            get => m_OutputResizeStrategy;
-            set => m_OutputResizeStrategy = value;
-        }
-        
-        public PresenterResizeStrategies InputResizeStrategy
-        {
-            get => m_InputResizeStrategy;
-            set => m_InputResizeStrategy = value;
+            get => m_ResizeStrategy;
+            set => m_ResizeStrategy = value;
         }
 
         public CameraCapturePresenter OutputPresenter
@@ -60,18 +41,12 @@ namespace Disguise.RenderStream
             get => m_InputPresenter;
             set => m_InputPresenter = value;
         }
-
-        [SerializeField]
-        PresenterMode m_Mode = PresenterMode.Output;
         
         [SerializeField]
-        int m_Index;
+        int m_Selected;
 
         [SerializeField]
-        PresenterResizeStrategies m_OutputResizeStrategy = PresenterResizeStrategies.Fill;
-        
-        [SerializeField]
-        PresenterResizeStrategies m_InputResizeStrategy = PresenterResizeStrategies.Clamp;
+        PresenterResizeStrategies m_ResizeStrategy = PresenterResizeStrategies.Fit;
 
         [SerializeField]
         CameraCapturePresenter m_OutputPresenter;
@@ -98,17 +73,44 @@ namespace Disguise.RenderStream
         }
         
 #if UNITY_EDITOR
-        public static List<ManagedRemoteParameter> GetManagedRemoteParameters()
+        public static List<ManagedRemoteParameter> GetManagedRemoteParameters(ManagedSchema schema, ManagedRemoteParameters sceneSchema)
         {
             var prefab = LoadPrefab();
             var parameters = prefab.GetComponent<DisguiseRemoteParameters>();
             var managedParameters = parameters.exposedParameters();
 
-            // Discard the name of the GameObject, keep only the field ex:
-            // "DisguisePresenter Mode" => "Mode"
             foreach (var parameter in managedParameters)
             {
+                // Discard the name of the GameObject, keep only the field ex:
+                // "DisguisePresenter Mode" => "Mode"
                 parameter.displayName = parameter.displayName.Substring(parameter.displayName.IndexOf(" ") + 1);
+
+                // Generate dropdown choices corresponding to None + Channels + Live textures
+                if (parameter.key == "unity-screen-presenter m_Selected")
+                {
+                    List<string> options = new List<string>();
+                    options.Add("None");
+
+                    foreach (var channel in schema.channels)
+                    {
+                        options.Add(channel);
+                    }
+
+                    var remoteParameters = FindObjectsByType<DisguiseRemoteParameters>(FindObjectsSortMode.None);
+                    foreach (var sceneParameter in sceneSchema.parameters)
+                    {
+                        var remoteParams = Array.Find(remoteParameters, rp => sceneParameter.key.StartsWith(rp.prefix));
+                        var field = new ObjectField();
+                        field.info = remoteParams.GetMemberInfoFromPropertyPath(sceneParameter.key.Substring(remoteParams.prefix.Length + 1));
+
+                        if (field.FieldType == typeof(Texture))
+                        {
+                            options.Add(sceneParameter.displayName);
+                        }
+                    }
+
+                    parameter.options = options.ToArray();
+                }
             }
             
             return managedParameters;
@@ -131,25 +133,27 @@ namespace Disguise.RenderStream
         {
             Assert.IsNotNull(m_OutputPresenter);
             Assert.IsNotNull(m_InputPresenter);
-            
-            if (Mode == PresenterMode.Off)
+
+            if (Selected == 0)
             {
                 m_OutputPresenter.enabled = m_InputPresenter.enabled = false;
                 return;
             }
 
-            m_OutputPresenter.enabled = Mode == PresenterMode.Output;
-            m_InputPresenter.enabled = Mode == PresenterMode.Input;
-            
-            m_OutputPresenter.strategy = PresenterStrategyToBlitStrategy(m_OutputResizeStrategy);
-            m_InputPresenter.strategy = PresenterStrategyToBlitStrategy(m_InputResizeStrategy);
+            var outputIdx = Selected - 1;
+            var inputIdx = Selected - 1 - m_Outputs.Length;
 
-            if (Mode == PresenterMode.Output)
-                AssignOutput();
-            else if (Mode == PresenterMode.Input)
-                AssignInput();
+            var outputIsActive = outputIdx >= 0 && outputIdx < m_Outputs.Length;
+
+            m_OutputPresenter.enabled = outputIsActive;
+            m_InputPresenter.enabled = !outputIsActive;
+            
+            m_OutputPresenter.strategy = m_InputPresenter.strategy = PresenterStrategyToBlitStrategy(m_ResizeStrategy);
+
+            if (outputIsActive)
+                m_OutputPresenter.cameraCapture = m_Outputs[outputIdx];
             else
-                throw new ArgumentOutOfRangeException();
+                m_InputPresenter.source = m_Inputs[inputIdx];
         }
 
         void RefreshOutput()
@@ -165,32 +169,6 @@ namespace Disguise.RenderStream
             {
                 m_Inputs = inputTextures.ToArray();
             }
-        }
-
-        void AssignOutput()
-        {
-            m_OutputPresenter.cameraCapture = ClampIndex(Index, m_Outputs, out var clampedIndex)
-                ? m_Outputs[clampedIndex]
-                : null;
-        }
-        
-        void AssignInput()
-        {
-            m_InputPresenter.source = ClampIndex(Index, m_Inputs, out var clampedIndex)
-                ? m_Inputs[clampedIndex]
-                : null;
-        }
-
-        bool ClampIndex(int index, IList list, out int clampedIndex)
-        {
-            if (list.Count == 0)
-            {
-                clampedIndex = 0;
-                return false;
-            }
-            
-            clampedIndex = Mathf.Clamp(index, 0, list.Count - 1);
-            return true;
         }
     }
 }
