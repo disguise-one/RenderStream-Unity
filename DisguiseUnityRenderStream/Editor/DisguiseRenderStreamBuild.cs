@@ -35,9 +35,6 @@ namespace Disguise.RenderStream
         {
             m_HasGeneratedSchema = false;
             
-            DisguiseFramerateManager.Reset();
-            CheckVsync();
-            
             AddAlwaysIncludedShader(BlitExtended.ShaderName);
             AddAlwaysIncludedShader(DepthCopy.ShaderName);
             
@@ -45,14 +42,12 @@ namespace Disguise.RenderStream
             
             if (target != BuildTarget.StandaloneWindows64)
             {
-                Debug.LogError("DisguiseRenderStream: RenderStream is only available for 64-bit Windows (x86_64).");
-                return;
+                throw new BuildFailedException("DisguiseRenderStream: RenderStream is only available for 64-bit Windows (x86_64).");
             }
 
             if (PluginEntry.instance.IsAvailable == false)
             {
-                Debug.LogError("DisguiseRenderStream: RenderStream DLL not available, could not save schema");
-                return;
+                throw new BuildFailedException("DisguiseRenderStream: RenderStream DLL not available, could not save schema");
             }
         }
         
@@ -83,6 +78,8 @@ namespace Disguise.RenderStream
         
         void IPostprocessBuildWithReport.OnPostprocessBuild(BuildReport report)
         {
+            CheckVsync();
+            
             if (m_HasGeneratedSchema)
                 return;
             
@@ -140,7 +137,7 @@ namespace Disguise.RenderStream
             RS_ERROR error = PluginEntry.instance.saveSchema(pathToBuiltProject, ref m_Schema);
             if (error != RS_ERROR.RS_ERROR_SUCCESS)
             {
-                Debug.LogError(string.Format("DisguiseRenderStream: Failed to save schema {0}", error));
+                throw new BuildFailedException(string.Format("DisguiseRenderStream: Failed to save schema {0}", error));
             }
         }
 
@@ -181,9 +178,9 @@ namespace Disguise.RenderStream
         
         static void CheckVsync()
         {
-            if (DisguiseFramerateManager.Enabled && DisguiseFramerateManager.VSyncIsEnabled)
+            if (DisguiseFramerateManager.VSyncIsEnabled)
             {
-                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}.{nameof(QualitySettings.vSyncCount)} is currently enabled. For best performance disable vSync in the project settings.");
+                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}.{nameof(QualitySettings.vSyncCount)} is currently enabled in the project setting. Disabling vSync automatically for best output performance for Disguise.");
             }
         }
         

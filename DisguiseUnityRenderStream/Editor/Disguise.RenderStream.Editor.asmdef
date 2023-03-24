@@ -14,12 +14,6 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [
-        {
-            "name": "com.unity.cluster-display",
-            "expression": "0.0.0",
-            "define": "ENABLE_CLUSTER_DISPLAY"
-        }
-    ],
+    "versionDefines": [],
     "noEngineReferences": false
 }
