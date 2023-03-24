@@ -156,6 +156,11 @@ namespace Disguise.RenderStream
         protected virtual void OnDisable()
         {
             RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
+
+            // When no Cameras are rendering to the screen the previous frame
+            // will remain until the next clear. Force a clear to avoid this:
+            if (m_clearScreen)
+                RenderPipelineManager.beginContextRendering += ClearScreenOnce;
             
             m_backEnd.Disable();
         }
@@ -210,7 +215,7 @@ namespace Disguise.RenderStream
             BlitExtended.Instance.BlitQuad(cmd, m_source, GetColorSpaceConversion(), srcScaleBias, dstScaleBias);
         }
         
-        void ClearScreen(ScriptableRenderContext context)
+        static void ClearScreen(ScriptableRenderContext context)
         {
             var cmd = CommandBufferPool.Get(k_profilerClearTag);
 
@@ -230,6 +235,16 @@ namespace Disguise.RenderStream
             
             if (clearScreen)
                 ClearScreen(context);
+        }
+
+        static void ClearScreenOnce(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            if (!IsValidContext(context, cameras))
+                return;
+            
+            ClearScreen(context);
+            
+            RenderPipelineManager.beginContextRendering -= ClearScreenOnce;
         }
 
         static bool IsValidContext(ScriptableRenderContext context, List<Camera> cameras)
