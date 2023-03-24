@@ -35,6 +35,7 @@ namespace Disguise.RenderStream
         {
             m_HasGeneratedSchema = false;
             
+            DisguiseFramerateManager.Reset();
             CheckVsync();
             
             AddAlwaysIncludedShader(BlitExtended.ShaderName);
@@ -67,7 +68,7 @@ namespace Disguise.RenderStream
                 {
                     foreach (var exposedParameter in remoteParameter.exposedParameters())
                     {
-                        var memberInfo = remoteParameter.GetMemberInfo(exposedParameter);
+                        var memberInfo = remoteParameter.GetMemberInfoFromManagedParameter(exposedParameter);
                         preserver.Preserve(memberInfo);
                     }
                 }
@@ -182,7 +183,7 @@ namespace Disguise.RenderStream
         {
             if (DisguiseFramerateManager.Enabled && DisguiseFramerateManager.VSyncIsEnabled)
             {
-                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}{nameof(QualitySettings.vSyncCount)} is currently enabled. For best performance disable vSync in the project settings.");
+                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}.{nameof(QualitySettings.vSyncCount)} is currently enabled. For best performance disable vSync in the project settings.");
             }
         }
         

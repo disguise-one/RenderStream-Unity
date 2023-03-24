@@ -330,6 +330,12 @@ public class DisguiseRemoteParameters : MonoBehaviour
 
     MemberInfo GetMemberInfoFromPropertyPath(string propertyPath)
     {
+        // Note on fields/properties:
+        // * BindingFlags.Public: DynamicSetterCache needs public access and to avoid exposing class internals
+        // * BindingFlags.DeclaredOnly: Avoids System.Reflection.AmbiguousMatchException when a child class member
+        //      overshadows a parent member (ex TextMeshPro.renderer). Since we traverse the hierarchy top to bottom,
+        //      the top-level member will be resolved.
+        
         if (exposedObject == null)
             return null;
         MemberInfo info = null;
@@ -355,7 +361,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         return info;
     }
 
-    public MemberInfo GetMemberInfo(ManagedRemoteParameter managedParameter)
+    public MemberInfo GetMemberInfoFromManagedParameter(ManagedRemoteParameter managedParameter)
     {
         var key = managedParameter.key;
         

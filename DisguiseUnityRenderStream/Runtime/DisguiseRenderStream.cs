@@ -111,7 +111,7 @@ namespace Disguise.RenderStream
                 if (key.EndsWith("_x"))
                 {
                     string baseKey = key.Substring(0, key.Length - 2);
-                    field.info = remoteParams.GetMemberInfo(managedParameter);
+                    field.info = remoteParams.GetMemberInfoFromManagedParameter(managedParameter);
                     Type fieldType = field.FieldType;
                     if ((fieldType == typeof(Vector2) || fieldType == typeof(Vector2Int)) &&
                         j + 1 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_y")
@@ -136,7 +136,7 @@ namespace Disguise.RenderStream
                 else if (key.EndsWith("_r"))
                 {
                     string baseKey = key.Substring(0, key.Length - 2);
-                    field.info = remoteParams.GetMemberInfo(managedParameter);
+                    field.info = remoteParams.GetMemberInfoFromManagedParameter(managedParameter);
                     Type fieldType = field.FieldType;
                     if (fieldType == typeof(Color) &&
                         j + 3 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_g" && scene.parameters[j + 2].key == baseKey + "_b" && scene.parameters[j + 3].key == baseKey + "_a")
@@ -151,7 +151,7 @@ namespace Disguise.RenderStream
                 
                 if (field.info == null)
                 {
-                    field.info = remoteParams.GetMemberInfo(managedParameter);
+                    field.info = remoteParams.GetMemberInfoFromManagedParameter(managedParameter);
                     ++j;
                 }
                 

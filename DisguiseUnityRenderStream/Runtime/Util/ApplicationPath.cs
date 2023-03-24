@@ -13,7 +13,7 @@ namespace Disguise.RenderStream.Utils
         {
             var processHandle = Native.GetCurrentProcess();
             
-            uint size = Native.MAX_PATH;
+            uint size = Native.UNICODE_STRING_MAX_CHARS;
             StringBuilder strBuffer = new StringBuilder((int)size);
             
             if (Native.QueryFullProcessImageName(processHandle, 0, strBuffer, ref size))
@@ -26,7 +26,8 @@ namespace Disguise.RenderStream.Utils
         {
             const string kerneldll = "kernel32.dll";
 
-            public const int MAX_PATH = 260;
+            // MAX_PATH (260) doesn't cover UNC paths
+            public const int UNICODE_STRING_MAX_CHARS = 32767;
             
             [DllImport(kerneldll, SetLastError = true)]
             public static extern UIntPtr GetCurrentProcess();

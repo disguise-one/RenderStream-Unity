@@ -48,7 +48,7 @@ namespace Disguise.RenderStream
         {
             var contents = CreateLinkXml();
 
-            var projectDir = Application.dataPath.Replace("/Assets", string.Empty);
+            var projectDir = Path.GetDirectoryName(Application.dataPath);
             var xmlDir = $"{projectDir}/{k_XmlDirectory}";
             var xmlPath = $"{xmlDir}/{k_XmlName}";
 

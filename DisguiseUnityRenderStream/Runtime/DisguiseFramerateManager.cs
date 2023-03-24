@@ -19,6 +19,12 @@ namespace Disguise.RenderStream
         static bool s_WarnedVSync;
         static bool s_WarnedFrameRate;
 
+        public static void Reset()
+        {
+            s_WarnedVSync = false;
+            s_WarnedFrameRate = false;
+        }
+
         [RuntimeInitializeOnLoadMethod]
         public static void Initialize()
         {
