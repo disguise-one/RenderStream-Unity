@@ -143,7 +143,7 @@ namespace Disguise.RenderStream
                 };
                 
                 Debug.Log($"Processing scene {scene.name} {indexMessage}");
-                AddSceneToSchema(schema, sceneIndex, managedName);
+                AddSceneToSchema(schema, sceneIndex, managedName, settings.exposePresenter);
             }
 
             var pathToBuiltProject = report.summary.outputPath;
@@ -154,8 +154,10 @@ namespace Disguise.RenderStream
             }
         }
         
-        static void AddSceneToSchema(ManagedSchema schema, int sceneIndex, string name)
+        static void AddSceneToSchema(ManagedSchema schema, int sceneIndex, string name, bool exposePresenter)
         {
+            var isNewSceneSchema = schema.scenes[sceneIndex] == null;
+            
             var channels = new HashSet<string>(schema.channels);
             channels.UnionWith(Camera.allCameras.Select(camera => camera.name));
             schema.channels = channels.ToArray();
@@ -169,6 +171,11 @@ namespace Disguise.RenderStream
             var parameters = currentScene.parameters
                 .Concat(Object.FindObjectsByType<DisguiseRemoteParameters>(FindObjectsSortMode.InstanceID)
                 .SelectMany(p => p.exposedParameters()));
+
+            if (exposePresenter && isNewSceneSchema)
+            {
+                parameters = DisguisePresenter.GetManagedRemoteParameters().Concat(parameters);
+            }
             
             currentScene.parameters = parameters.ToArray();
         }

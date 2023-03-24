@@ -87,6 +87,11 @@ namespace Disguise.RenderStream
 
         void OnSceneLoaded(Scene loadedScene, LoadSceneMode mode)
         {
+            if (DisguiseRenderStreamSettings.GetOrCreateSettings().exposePresenter)
+            {
+                GameObject.Instantiate(DisguisePresenter.LoadPrefab());
+            }
+            
             CreateStreams();
             int sceneIndex = 0;
             DisguiseRenderStreamSettings settings = DisguiseRenderStreamSettings.GetOrCreateSettings();

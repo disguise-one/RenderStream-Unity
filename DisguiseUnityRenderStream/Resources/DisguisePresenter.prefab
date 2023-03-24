@@ -83,7 +83,7 @@ Transform:
   - {fileID: 360651681370543319}
   - {fileID: 360651682882557475}
   m_Father: {fileID: 0}
-  m_RootOrder: 16
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &360651681440703412
 MonoBehaviour:
@@ -99,8 +99,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Mode: 1
   m_Index: 0
-  m_OutputResizeStrategy: 5
-  m_InputResizeStrategy: 6
+  m_OutputResizeStrategy: 2
+  m_InputResizeStrategy: 4
   m_OutputPresenter: {fileID: 360651681370543318}
   m_InputPresenter: {fileID: 360651682882557474}
 --- !u!114 &360651681440703411
@@ -116,17 +116,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   exposedObject: {fileID: 360651681440703412}
-  prefix: 45e245d1-1f3e-44b5-b421-ac83ed781d55
+  prefix: unity-screen-presenter
   fields:
   - exposed: 0
     fieldName: Script
     groupName: 
   - exposed: 1
     fieldName: Mode
-    groupName: Presenter
+    groupName: Local Screen Presenter
   - exposed: 1
     fieldName: Index
-    groupName: Presenter
+    groupName: Local Screen Presenter
   - exposed: 0
     fieldName: Output Presenter
     groupName: 
@@ -135,10 +135,10 @@ MonoBehaviour:
     groupName: 
   - exposed: 1
     fieldName: Output Resize Strategy
-    groupName: Presenter
+    groupName: Local Screen Presenter
   - exposed: 1
     fieldName: Input Resize Strategy
-    groupName: Presenter
+    groupName: Local Screen Presenter
 --- !u!1 &360651682882557473
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -15,6 +16,15 @@ namespace Disguise.RenderStream
             Input
         }
 
+        public enum PresenterResizeStrategies
+        {
+            ActualSize,
+            Stretch,
+            Fill,
+            Fit,
+            Clamp
+        }
+
         public PresenterMode Mode
         {
             get => m_Mode;
@@ -27,13 +37,13 @@ namespace Disguise.RenderStream
             set => m_Index = value;
         }
         
-        public BlitStrategy.Strategy OutputResizeStrategy
+        public PresenterResizeStrategies OutputResizeStrategy
         {
             get => m_OutputResizeStrategy;
             set => m_OutputResizeStrategy = value;
         }
         
-        public BlitStrategy.Strategy InputResizeStrategy
+        public PresenterResizeStrategies InputResizeStrategy
         {
             get => m_InputResizeStrategy;
             set => m_InputResizeStrategy = value;
@@ -58,10 +68,10 @@ namespace Disguise.RenderStream
         int m_Index;
 
         [SerializeField]
-        BlitStrategy.Strategy m_OutputResizeStrategy = BlitStrategy.Strategy.Fill;
+        PresenterResizeStrategies m_OutputResizeStrategy = PresenterResizeStrategies.Fill;
         
         [SerializeField]
-        BlitStrategy.Strategy m_InputResizeStrategy = BlitStrategy.Strategy.Clamp;
+        PresenterResizeStrategies m_InputResizeStrategy = PresenterResizeStrategies.Clamp;
 
         [SerializeField]
         CameraCapturePresenter m_OutputPresenter;
@@ -71,6 +81,39 @@ namespace Disguise.RenderStream
 
         CameraCapture[] m_Outputs = {};
         RenderTexture[] m_Inputs = {};
+
+        static BlitStrategy.Strategy PresenterStrategyToBlitStrategy(PresenterResizeStrategies strategy) => strategy switch
+        {
+            PresenterResizeStrategies.ActualSize => BlitStrategy.Strategy.NoResize,
+            PresenterResizeStrategies.Stretch => BlitStrategy.Strategy.Stretch,
+            PresenterResizeStrategies.Fill => BlitStrategy.Strategy.Fill,
+            PresenterResizeStrategies.Fit => BlitStrategy.Strategy.Letterbox,
+            PresenterResizeStrategies.Clamp => BlitStrategy.Strategy.Clamp,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+
+        public static GameObject LoadPrefab()
+        {
+            return Resources.Load<GameObject>("DisguisePresenter");
+        }
+        
+#if UNITY_EDITOR
+        public static List<ManagedRemoteParameter> GetManagedRemoteParameters()
+        {
+            var prefab = LoadPrefab();
+            var parameters = prefab.GetComponent<DisguiseRemoteParameters>();
+            var managedParameters = parameters.exposedParameters();
+
+            // Discard the name of the GameObject, keep only the field ex:
+            // "DisguisePresenter Mode" => "Mode"
+            foreach (var parameter in managedParameters)
+            {
+                parameter.displayName = parameter.displayName.Substring(parameter.displayName.IndexOf(" ") + 1);
+            }
+            
+            return managedParameters;
+        }
+#endif
 
         void OnEnable()
         {
@@ -98,8 +141,8 @@ namespace Disguise.RenderStream
             m_OutputPresenter.enabled = Mode == PresenterMode.Output;
             m_InputPresenter.enabled = Mode == PresenterMode.Input;
             
-            m_OutputPresenter.strategy = m_OutputResizeStrategy;
-            m_InputPresenter.strategy = m_InputResizeStrategy;
+            m_OutputPresenter.strategy = PresenterStrategyToBlitStrategy(m_OutputResizeStrategy);
+            m_InputPresenter.strategy = PresenterStrategyToBlitStrategy(m_InputResizeStrategy);
 
             if (Mode == PresenterMode.Output)
                 AssignOutput();
