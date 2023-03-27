@@ -182,8 +182,8 @@ namespace Disguise.RenderStream
         {
             foreach (var scene in schema.scenes)
             {
-                var parameters = DisguisePresenter.GetManagedRemoteParameters(schema, scene);
-                scene.parameters = parameters.Concat(scene.parameters).ToArray();
+                var presenterParameters = DisguisePresenter.GetManagedRemoteParameters(schema, scene);
+                scene.parameters = presenterParameters.Concat(scene.parameters).ToArray();
             }
         }
     }
