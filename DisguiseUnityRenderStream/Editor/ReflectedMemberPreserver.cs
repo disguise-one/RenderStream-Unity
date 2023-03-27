@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
+using System.Xml;
+using System.Xml.Linq;
 using UnityEngine;
 
 namespace Disguise.RenderStream
@@ -46,8 +47,6 @@ namespace Disguise.RenderStream
 
         public string GenerateAdditionalLinkXmlFile()
         {
-            var contents = CreateLinkXml();
-
             var projectDir = Path.GetDirectoryName(Application.dataPath);
             var xmlDir = $"{projectDir}/{k_XmlDirectory}";
             var xmlPath = $"{xmlDir}/{k_XmlName}";
@@ -56,71 +55,70 @@ namespace Disguise.RenderStream
             {
                 Directory.CreateDirectory(xmlDir);
             }
-
-            File.WriteAllText(xmlPath, contents);
+            
+            CreateLinkXml(xmlPath);
 
             return xmlPath;
         }
 
-        string CreateLinkXml()
+        void CreateLinkXml(string filepath)
         {
-            var linkXml = new StringBuilder();
+            var xmlSettings = new XmlWriterSettings
+            {
+                OmitXmlDeclaration = true,
+                Indent = true
+            };
+
+            using var xmlWriter = XmlWriter.Create(filepath, xmlSettings);
             
-            linkXml.AppendLine("<linker>");
-            
+            var xmlLinker = new XElement("linker");
+
             // Sort everything by name so the file output is deterministic. This ensures the build system
             // only detects a change when the preserved members are different.
             foreach (var assemblyMembers in m_MembersToPreserve.OrderBy(a => a.Key.GetName().Name))
             {
-                linkXml.AppendLine($"  <assembly fullname=\"{assemblyMembers.Key.GetName().Name}\">");
-            
+                var xmlAssembly = new XElement("assembly", new XAttribute("fullname", assemblyMembers.Key.GetName().Name));
+                xmlLinker.Add(xmlAssembly);
+
                 foreach (var typeMembers in assemblyMembers.Value.OrderBy(t => t.Key.FullName))
                 {
-                    linkXml.AppendLine($"    <type fullname=\"{FormatForXml(ToCecilName(typeMembers.Key.FullName))}\">");
-            
+                    var xmlType = new XElement("type", new XAttribute("fullname", ToCecilName(typeMembers.Key.FullName)));
+                    xmlAssembly.Add(xmlType);
+
                     foreach (var member in typeMembers.Value.OrderBy(m => m.Name))
                     {
-                        var memberName = FormatForXml(member.Name);
-            
                         switch (member)
                         {
                             case FieldInfo field:
                             {
-                                linkXml.AppendLine($"      <field name=\"{memberName}\" />");
+                                xmlType.Add(new XElement("field", new XAttribute("name", member.Name)));
                                 break;
                             }
                             case PropertyInfo property:
                             {
-                                linkXml.AppendLine($"      <property name=\"{memberName}\" />");
+                                xmlType.Add(new XElement("property", new XAttribute("name", member.Name)));
                                 break;
                             }
                             case MethodInfo method:
                             {
-                                linkXml.AppendLine($"      <method name=\"{memberName}\" />");
+                                xmlType.Add(new XElement("method", new XAttribute("name", member.Name)));
                                 break;
+                            }
+                            default:
+                            {
+                                throw new NotImplementedException($"Unsupported {typeof(MemberInfo)} subtype");
                             }
                         }
                     }
-            
-                    linkXml.AppendLine("    </type>");
                 }
-            
-                linkXml.AppendLine("  </assembly>");
             }
-            
-            linkXml.AppendLine("</linker>");
-            
-            return linkXml.ToString();
+
+            xmlLinker.Save(xmlWriter);
         }
 
         static string ToCecilName(string fullTypeName)
         {
             return fullTypeName.Replace('+', '/');
-        }
-
-        static string FormatForXml(string value)
-        {
-            return value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
         }
     }
 }
