@@ -39,11 +39,10 @@ namespace Disguise.RenderStream
         }
 
         private const string k_PrefabPath = "DisguisePresenter";
-        private const string k_SelectionRemoteParameterKey = "unity-screen-presenter m_Selected";
         private const string k_NoneTextureLabel = "None";
 
         /// <summary>
-        /// The index of the selection in <see cref="k_SelectionRemoteParameterKey"/>'s dropdown to present to the screen.
+        /// The index of the selection in the texture dropdown to present to the screen.
         /// The dropdown choices are generated inside <see cref="GetManagedRemoteParameters"/>, as a concatenated list of:
         /// None + Channels (output) + Live textures (input).
         /// </summary>
@@ -120,7 +119,7 @@ namespace Disguise.RenderStream
                 parameter.displayName = parameter.displayName.Substring(parameter.displayName.IndexOf(" ") + 1);
 
                 // Generate dropdown choices as a concatenated list of: None + Channels (output) + Live textures (input)
-                if (parameter.key == k_SelectionRemoteParameterKey)
+                if (parameter.displayName == nameof(Selected))
                 {
                     List<string> options = new List<string>();
                     options.Add(k_NoneTextureLabel);

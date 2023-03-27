@@ -116,15 +116,6 @@ MonoBehaviour:
   exposedObject: {fileID: 360651681440703412}
   prefix: unity-screen-presenter
   fields:
-  - exposed: 0
-    fieldName: Script
-    groupName: 
-  - exposed: 0
-    fieldName: Output Presenter
-    groupName: 
-  - exposed: 0
-    fieldName: Input Presenter
-    groupName: 
   - exposed: 1
     fieldName: Selected
     groupName: Local Screen Presenter

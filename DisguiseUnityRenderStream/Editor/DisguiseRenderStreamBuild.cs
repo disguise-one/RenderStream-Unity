@@ -141,6 +141,11 @@ namespace Disguise.RenderStream
 
                 processScene.Invoke(scene);
             }
+            
+            if (settings.exposePresenter)
+            {
+                AddPresenterToSchema(m_Schema);
+            }
 
             var pathToBuiltProject = report.summary.outputPath;
             RS_ERROR error = PluginEntry.instance.saveSchema(pathToBuiltProject, ref m_Schema);
@@ -164,11 +169,6 @@ namespace Disguise.RenderStream
                 
             Debug.Log($"Processing scene {scene.name} {indexMessage}");
             AddSceneToSchema(m_Schema, sceneIndex, managedName);
-
-            if (settings.exposePresenter)
-            {
-                AddPresenterToSchema(m_Schema);
-            }
         }
         
         static void AddSceneToSchema(ManagedSchema schema, int sceneIndex, string name)

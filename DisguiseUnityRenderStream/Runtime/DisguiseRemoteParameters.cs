@@ -313,8 +313,8 @@ public class DisguiseRemoteParameters : MonoBehaviour
         MemberInfo info = GetMemberInfoFromPropertyPath(propertyPath);
         if (info == null && propertyPath.StartsWith("m_"))
         {
-            string modifiedPropertyPath = char.ToLower(propertyPath[2]) + propertyPath.Substring(3);
-            info = GetMemberInfoFromPropertyPath(modifiedPropertyPath);
+            string modifiedPropertyPath = propertyPath.Substring(2);
+            info = GetMemberInfoFromPropertyPath(modifiedPropertyPath, true);
         }
         
         isPublic = info switch
@@ -328,20 +328,25 @@ public class DisguiseRemoteParameters : MonoBehaviour
     }
 #endif
 
-    MemberInfo GetMemberInfoFromPropertyPath(string propertyPath)
+    MemberInfo GetMemberInfoFromPropertyPath(string propertyPath, bool ignoreCase = false)
     {
         // Note on fields/properties:
         // * BindingFlags.Public: DynamicSetterCache needs public access and to avoid exposing class internals
         // * BindingFlags.DeclaredOnly: Avoids System.Reflection.AmbiguousMatchException when a child class member
         //      overshadows a parent member (ex TextMeshPro.renderer). Since we traverse the hierarchy top to bottom,
         //      the top-level member will be resolved.
-        
+        // * BindingFlags.IgnoreCase: For secondary lookup (ex "Position" after "m_Position" failed we want to match both "Position" and "position").
+
+        var bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
+        if (ignoreCase)
+            bindingFlags |= BindingFlags.IgnoreCase;
+
         if (exposedObject == null)
             return null;
         MemberInfo info = null;
         for (Type currentType = exposedObject.GetType(); info == null && currentType != null; currentType = currentType.BaseType)
         {
-            FieldInfo fieldInfo = currentType.GetField(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+            FieldInfo fieldInfo = currentType.GetField(propertyPath, bindingFlags);
             if (fieldInfo != null && (!fieldInfo.IsInitOnly || fieldInfo.FieldType.IsSubclassOf(typeof(UnityEngine.Object))))
             {
                 info = (MemberInfo)fieldInfo;
@@ -351,7 +356,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         }
         for (Type currentType = exposedObject.GetType(); info == null && currentType != null; currentType = currentType.BaseType)
         {
-            PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+            PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, bindingFlags);
             if (propertyInfo != null && propertyInfo.CanRead && (propertyInfo.CanWrite || propertyInfo.PropertyType.IsSubclassOf(typeof(UnityEngine.Object))))
             {
                 info = (MemberInfo)propertyInfo;
