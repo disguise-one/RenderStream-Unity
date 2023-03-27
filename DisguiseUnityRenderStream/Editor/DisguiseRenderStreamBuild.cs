@@ -167,7 +167,7 @@ namespace Disguise.RenderStream
 
             if (settings.exposePresenter)
             {
-                AddPresenterToSchema(schema);
+                AddPresenterToSchema(m_Schema);
             }
         }
         

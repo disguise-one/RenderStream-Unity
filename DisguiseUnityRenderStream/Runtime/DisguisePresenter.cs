@@ -135,7 +135,7 @@ namespace Disguise.RenderStream
                     {
                         var remoteParams = Array.Find(remoteParameters, rp => sceneParameter.key.StartsWith(rp.prefix));
                         var field = new ObjectField();
-                        field.info = remoteParams.GetMemberInfoFromPropertyPath(sceneParameter.key.Substring(remoteParams.prefix.Length + 1));
+                        field.info = remoteParams.GetMemberInfoFromManagedParameter(sceneParameter);
 
                         if (field.FieldType == typeof(Texture))
                         {
