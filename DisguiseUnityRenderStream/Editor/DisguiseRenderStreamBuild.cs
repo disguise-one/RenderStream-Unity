@@ -87,7 +87,7 @@ namespace Disguise.RenderStream
         {
             if (m_NeededVSyncFix)
             {
-                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}.{nameof(QualitySettings.vSyncCount)} is currently enabled in the project setting. Disabling vSync automatically for best output performance for Disguise.");
+                Debug.LogWarning($"DisguiseRenderStream: {nameof(QualitySettings)}.{nameof(QualitySettings.vSyncCount)} has been disabled for best output performance with Disguise");
             }
             
             if (m_HasGeneratedSchema)
