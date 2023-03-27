@@ -62,7 +62,11 @@ public class DisguiseRemoteParameters : MonoBehaviour
         {
             do
             {
-                displayNames.Add(property.displayName);
+                MemberInfo _ = GetMemberInfo(property, out var isPublic);
+                if (isPublic)
+                {
+                    displayNames.Add(property.displayName);
+                }
             }
             while (property.NextVisible(false));
         }
@@ -135,15 +139,15 @@ public class DisguiseRemoteParameters : MonoBehaviour
                     nesting.Push(previousName);
                 for (; depth > property.depth; --depth)
                     nesting.Pop();
-                string propertyPath = property.propertyPath;
-                MemberInfo info = GetMemberInfoFromPropertyPath(propertyPath);
-                if (info == null && propertyPath.StartsWith("m_"))
+                
+                MemberInfo info = GetMemberInfo(property, out var isPublic);
+                if (!isPublic)
                 {
-                    string modifiedPropertyPath = char.ToLower(propertyPath[2]) + propertyPath.Substring(3);
-                    info = GetMemberInfoFromPropertyPath(modifiedPropertyPath);
-                    if (info != null)
-                        propertyPath = modifiedPropertyPath;
+                    continue;
                 }
+                
+                string propertyPath = info?.Name;
+                
                 HeaderAttribute header = info != null ? info.GetCustomAttributes(typeof(HeaderAttribute), true).FirstOrDefault() as HeaderAttribute : null;
                 RangeAttribute range = info != null ? info.GetCustomAttributes(typeof(RangeAttribute), true).FirstOrDefault() as RangeAttribute : null;
                 MinAttribute min = info != null ? info.GetCustomAttributes(typeof(MinAttribute), true).FirstOrDefault() as MinAttribute : null;
@@ -234,6 +238,16 @@ public class DisguiseRemoteParameters : MonoBehaviour
                     parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "w", "w", 
                                                min != null ? min.min : (range != null ? range.min : -1.0f), range != null ? range.max : +1.0f, 0.001f, v.w, new string[0]));
                 }
+                else if (property.propertyType == UnityEditor.SerializedPropertyType.Quaternion)
+                {
+                    Vector3 v = property.quaternionValue.eulerAngles;
+                    parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "x", "x", 
+                                               -360f, +360f, 0.1f, v.x, new string[0]));
+                    parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "y", "y", 
+                                               -360f, +360f, 0.1f, v.y, new string[0]));
+                    parameters.Add(createField(group, property.displayName, prefix + " " + propertyPath, RemoteParameterType.RS_PARAMETER_NUMBER, "z", "z", 
+                                               -360f, +360f, 0.1f, v.z, new string[0]));
+                }
                 else if (property.propertyType == UnityEditor.SerializedPropertyType.Color)
                 {
                     Color v = property.colorValue;
@@ -292,16 +306,42 @@ public class DisguiseRemoteParameters : MonoBehaviour
         }
         return parameters;
     }
+    
+    MemberInfo GetMemberInfo(UnityEditor.SerializedProperty property, out bool isPublic)
+    {
+        string propertyPath = property.propertyPath;
+        MemberInfo info = GetMemberInfoFromPropertyPath(propertyPath);
+        if (info == null && propertyPath.StartsWith("m_"))
+        {
+            string modifiedPropertyPath = char.ToLower(propertyPath[2]) + propertyPath.Substring(3);
+            info = GetMemberInfoFromPropertyPath(modifiedPropertyPath);
+        }
+        
+        isPublic = info switch
+        {
+            FieldInfo fieldInfo => fieldInfo.IsPublic,
+            PropertyInfo propertyInfo => propertyInfo.GetSetMethod(true) != null,
+            _ => false
+        };
+        
+        return info;
+    }
 #endif
 
-    public MemberInfo GetMemberInfoFromPropertyPath(string propertyPath)
+    MemberInfo GetMemberInfoFromPropertyPath(string propertyPath)
     {
+        // Note on fields/properties:
+        // * BindingFlags.Public: DynamicSetterCache needs public access and to avoid exposing class internals
+        // * BindingFlags.DeclaredOnly: Avoids System.Reflection.AmbiguousMatchException when a child class member
+        //      overshadows a parent member (ex TextMeshPro.renderer). Since we traverse the hierarchy top to bottom,
+        //      the top-level member will be resolved.
+        
         if (exposedObject == null)
             return null;
         MemberInfo info = null;
         for (Type currentType = exposedObject.GetType(); info == null && currentType != null; currentType = currentType.BaseType)
         {
-            FieldInfo fieldInfo = currentType.GetField(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            FieldInfo fieldInfo = currentType.GetField(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
             if (fieldInfo != null && (!fieldInfo.IsInitOnly || fieldInfo.FieldType.IsSubclassOf(typeof(UnityEngine.Object))))
             {
                 info = (MemberInfo)fieldInfo;
@@ -311,7 +351,7 @@ public class DisguiseRemoteParameters : MonoBehaviour
         }
         for (Type currentType = exposedObject.GetType(); info == null && currentType != null; currentType = currentType.BaseType)
         {
-            PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            PropertyInfo propertyInfo = currentType.GetProperty(propertyPath, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
             if (propertyInfo != null && propertyInfo.CanRead && (propertyInfo.CanWrite || propertyInfo.PropertyType.IsSubclassOf(typeof(UnityEngine.Object))))
             {
                 info = (MemberInfo)propertyInfo;
@@ -319,5 +359,37 @@ public class DisguiseRemoteParameters : MonoBehaviour
             }
         }
         return info;
+    }
+
+    public MemberInfo GetMemberInfoFromManagedParameter(ManagedRemoteParameter managedParameter)
+    {
+        var key = managedParameter.key;
+        
+        if (key.Length >= 2)
+        {
+            var underscore = key[key.Length - 2];
+            var suffix = key[key.Length - 1];
+
+            if (underscore == '_')
+            {
+                var isComposite = suffix switch
+                {
+                    'x' => true,
+                    'y' => true,
+                    'z' => true,
+                    'w' => true,
+                    'r' => true,
+                    'g' => true,
+                    'b' => true,
+                    'a' => true,
+                    _ => false
+                };
+                
+                if (isComposite)
+                    key = key.Substring(0, key.Length - 2);
+            }
+        }
+        
+        return GetMemberInfoFromPropertyPath(key.Substring(prefix.Length + 1));
     }
 }

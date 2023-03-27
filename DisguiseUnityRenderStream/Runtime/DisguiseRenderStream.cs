@@ -35,7 +35,7 @@ namespace Disguise.RenderStream
                 return;
             }
 
-            string pathToBuiltProject = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            string pathToBuiltProject = ApplicationPath.GetExecutablePath();;
             RS_ERROR error = PluginEntry.instance.LoadSchema(pathToBuiltProject, out var schema);
             if (error != RS_ERROR.RS_ERROR_SUCCESS)
             {
@@ -107,22 +107,23 @@ namespace Disguise.RenderStream
             SceneFields fields = m_SceneFields[sceneIndex];
             for (int j = 0; j < scene.parameters.Length;)
             {
-                string key = scene.parameters[j].key;
+                ManagedRemoteParameter managedParameter = scene.parameters[j];
+                string key = managedParameter.key;
                 DisguiseRemoteParameters remoteParams = Array.Find(remoteParameters, rp => key.StartsWith(rp.prefix));
                 ObjectField field = new ObjectField();
                 field.target = remoteParams.exposedObject;
-                field.info = null;
-                if (field.info == null && key.EndsWith("_x"))
+                
+                if (key.EndsWith("_x"))
                 {
                     string baseKey = key.Substring(0, key.Length - 2);
-                    field.info = remoteParams.GetMemberInfoFromPropertyPath(baseKey.Substring(remoteParams.prefix.Length + 1));
+                    field.info = remoteParams.GetMemberInfoFromManagedParameter(managedParameter);
                     Type fieldType = field.FieldType;
                     if ((fieldType == typeof(Vector2) || fieldType == typeof(Vector2Int)) &&
                         j + 1 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_y")
                     {
                         j += 2;
                     }
-                    else if ((fieldType == typeof(Vector3) || fieldType == typeof(Vector3Int)) &&
+                    else if ((fieldType == typeof(Vector3) || fieldType == typeof(Vector3Int) || fieldType == typeof(Quaternion)) &&
                              j + 2 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_y" && scene.parameters[j + 2].key == baseKey + "_z")
                     {
                         j += 3;
@@ -137,10 +138,10 @@ namespace Disguise.RenderStream
                         field.info = null;
                     }
                 }
-                if (field.info == null && key.EndsWith("_r"))
+                else if (key.EndsWith("_r"))
                 {
                     string baseKey = key.Substring(0, key.Length - 2);
-                    field.info = remoteParams.GetMemberInfoFromPropertyPath(baseKey.Substring(remoteParams.prefix.Length + 1));
+                    field.info = remoteParams.GetMemberInfoFromManagedParameter(managedParameter);
                     Type fieldType = field.FieldType;
                     if (fieldType == typeof(Color) &&
                         j + 3 < scene.parameters.Length && scene.parameters[j + 1].key == baseKey + "_g" && scene.parameters[j + 2].key == baseKey + "_b" && scene.parameters[j + 3].key == baseKey + "_a")
@@ -152,11 +153,13 @@ namespace Disguise.RenderStream
                         field.info = null;
                     }
                 }
+                
                 if (field.info == null)
                 {
-                    field.info = remoteParams.GetMemberInfoFromPropertyPath(key.Substring(remoteParams.prefix.Length + 1));
+                    field.info = remoteParams.GetMemberInfoFromManagedParameter(managedParameter);
                     ++j;
                 }
+                
                 if (field.info == null)
                 {
                     Debug.LogError("Unhandled remote parameter: " + key);
@@ -320,6 +323,13 @@ namespace Disguise.RenderStream
                             Vector4 v = new Vector4(parameters[i + 0], parameters[i + 1], parameters[i + 2], parameters[i + 3]);
                             field.SetValue(v);
                             i += 4;
+                        }
+                        else if (fieldType == typeof(Quaternion))
+                        {
+                            Vector3 euler = new Vector3(parameters[i + 0], parameters[i + 1], parameters[i + 2]);
+                            Quaternion q = Quaternion.Euler(euler);
+                            field.SetValue(q);
+                            i += 3;
                         }
                         else if (fieldType == typeof(Color))
                         {
