@@ -28,7 +28,6 @@ namespace Disguise.RenderStream
 
         bool m_NeededVSyncFix;
         bool m_HasGeneratedSchema;
-        DisguiseRenderStreamSettings m_Settings;
         ManagedSchema m_Schema;
         int m_NumScenesInBuild;
         
@@ -98,7 +97,7 @@ namespace Disguise.RenderStream
 
         void GenerateSchema(BuildReport report, Action<Scene> processScene)
         {
-            m_Settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
+            var settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
             m_Schema = new ManagedSchema
             {
                 channels = Array.Empty<string>()
@@ -107,7 +106,7 @@ namespace Disguise.RenderStream
             var allScenesInBuild = EditorBuildSettings.scenes;
             m_NumScenesInBuild = allScenesInBuild.Length;
             
-            switch (m_Settings.sceneControl)
+            switch (settings.sceneControl)
             {
                 case DisguiseRenderStreamSettings.SceneControl.Selection:
                     Debug.Log("Generating scene-selection schema for: " + allScenesInBuild.Length + " scenes");
