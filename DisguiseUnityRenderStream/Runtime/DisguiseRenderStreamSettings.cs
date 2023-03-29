@@ -18,6 +18,11 @@ class DisguiseRenderStreamSettings : ScriptableObject
         Selection
     }
 
+    /// <summary>
+    /// The Disguise software's behavior for controlling scenes.
+    /// </summary>
+    [Tooltip("Manual: Restricts the disguise software's control of scenes and instead merges all channels and remote parameters into a single scene.\n" +
+             "Selection: Allows scenes to be controlled from inside the disguise software; channels are merged into a single list (duplicates removed) and remote parameters are per-scene.")]
     [SerializeField]
     public SceneControl sceneControl = SceneControl.Manual;
     
@@ -25,6 +30,8 @@ class DisguiseRenderStreamSettings : ScriptableObject
     /// When true, the Unity window will be able to display streams or live textures to the local screen.
     /// The generated schema will include remote parameters to select the texture to display and how to resize it to fit the screen.
     /// </summary>
+    [Tooltip("When true, the Unity window will be able to display streams or live textures to the local screen.\n" +
+             "The generated schema will include remote parameters to select the texture to display and how to resize it to fit the screen.")]
     [SerializeField]
     public bool exposePresenter = true;
 

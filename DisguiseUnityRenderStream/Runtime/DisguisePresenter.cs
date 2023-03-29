@@ -8,8 +8,10 @@ using UnityEngine.Assertions;
 namespace Disguise.RenderStream
 {
     /// <summary>
-    /// <para>
     /// This component together with the prefab of the same name offer drop-in support for presenting any Disguise-related texture to the Unity window.
+    /// </summary>
+    /// <remarks>
+    /// <para>
     /// This class has two responsibilities:
     /// </para>
     /// <para>
@@ -18,7 +20,7 @@ namespace Disguise.RenderStream
     /// <para>
     /// 2. Presenting a texture to the screen according to <see cref="Selected"/> and <see cref="ResizeStrategy"/>.
     /// </para>
-    /// </summary>
+    /// </remarks>
     class DisguisePresenter : MonoBehaviour
     {
         /// <summary>
@@ -38,8 +40,8 @@ namespace Disguise.RenderStream
             Clamp
         }
 
-        private const string k_PrefabPath = "DisguisePresenter";
-        private const string k_NoneTextureLabel = "None";
+        const string k_PrefabPath = "DisguisePresenter";
+        const string k_NoneTextureLabel = "None";
 
         /// <summary>
         /// The index of the selection in the texture dropdown to present to the screen.
@@ -175,44 +177,59 @@ namespace Disguise.RenderStream
             Assert.IsNotNull(m_OutputPresenter);
             Assert.IsNotNull(m_InputPresenter);
 
-            VirtualIndexToRealIndex(Selected, out var outputIdx, out var inputIdx);
-            
-            // No output or input selected
-            if (outputIdx < 0 && inputIdx < 0)
+            if (VirtualIndexToOutputIndex(Selected) is { } outputIndex)
+            {
+                m_OutputPresenter.enabled = true;
+                m_InputPresenter.enabled = false;
+                m_OutputPresenter.cameraCapture = m_Outputs[outputIndex];
+            }
+            else if (VirtualIndexToInputIndex(Selected) is { } inputIndex)
+            {
+                m_InputPresenter.enabled = true;
+                m_OutputPresenter.enabled = false;
+                m_InputPresenter.source = m_Inputs[inputIndex];
+            }
+            else
             {
                 m_OutputPresenter.enabled = m_InputPresenter.enabled = false;
                 return;
             }
-
-            m_OutputPresenter.enabled = outputIdx >= 0;
-            m_InputPresenter.enabled = inputIdx >= 0;
             
             m_OutputPresenter.strategy = m_InputPresenter.strategy = PresenterStrategyToBlitStrategy(m_ResizeStrategy);
-
-            if (m_OutputPresenter.enabled)
-                m_OutputPresenter.cameraCapture = m_Outputs[outputIdx];
-            
-            if (m_InputPresenter.enabled)
-                m_InputPresenter.source = m_Inputs[inputIdx];
         }
 
         /// <summary>
-        /// Maps a virtual index like <see cref="Selected"/> to real indexes into <see cref="m_Outputs"/> and <see cref="m_Inputs"/>.
+        /// Maps a virtual index like <see cref="Selected"/> to a real index into <see cref="m_Outputs"/>.
         /// The virtual list is described in <see cref="GetManagedRemoteParameters"/>.
         /// </summary>
-        /// <remarks>
-        /// <paramref name="outputIdx"/> and <paramref name="inputIdx"/> are -1 when invalid.
-        /// </remarks>
-        void VirtualIndexToRealIndex(int virtualIdx, out int outputIdx, out int inputIdx)
+        /// <returns>
+        /// An index into <see cref="m_Outputs"/>, or null when no output is selected.
+        /// </returns>
+        int? VirtualIndexToOutputIndex(int virtualIndex)
         {
-            outputIdx = virtualIdx - 1;
-            inputIdx = virtualIdx - 1 - m_Outputs.Length;
+            var outputIndex = virtualIndex - 1;
 
-            if (outputIdx < 0 || outputIdx >= m_Outputs.Length)
-                outputIdx = -1;
+            if (outputIndex < 0 || outputIndex >= m_Outputs.Length)
+                return null;
+
+            return outputIndex;
+        }
+        
+        /// <summary>
+        /// Maps a virtual index like <see cref="Selected"/> to a real index into <see cref="m_Inputs"/>.
+        /// The virtual list is described in <see cref="GetManagedRemoteParameters"/>.
+        /// </summary>
+        /// <returns>
+        /// An index into <see cref="m_Inputs"/>, or null when no input is selected.
+        /// </returns>
+        int? VirtualIndexToInputIndex(int virtualIndex)
+        {
+            var inputIndex = virtualIndex - 1 - m_Outputs.Length;
             
-            if (inputIdx < 0 || inputIdx >= m_Inputs.Length)
-                inputIdx = -1;
+            if (inputIndex < 0 || inputIndex >= m_Inputs.Length)
+                return null;
+            
+            return inputIndex;
         }
 
         void RefreshOutput()
@@ -224,10 +241,7 @@ namespace Disguise.RenderStream
         
         void RefreshInput()
         {
-            if (DisguiseRenderStream.Instance is { InputTextures: { } inputTextures })
-            {
-                m_Inputs = inputTextures.ToArray();
-            }
+            m_Inputs = DisguiseRenderStream.Instance.InputTextures.ToArray();
         }
     }
 }

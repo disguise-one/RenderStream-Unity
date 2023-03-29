@@ -532,11 +532,11 @@ namespace Disguise.RenderStream
             get
             {
                 if (LatestFrameData.scene > m_SceneFields.Length)
-                    return null;
+                    return Enumerable.Empty<RenderTexture>();
 
                 var images = m_SceneFields[LatestFrameData.scene].images;
                 if (images == null)
-                    return null;
+                    return Enumerable.Empty<RenderTexture>();
 
                 return images.Select(x => x.GetValue() as RenderTexture);
             }
