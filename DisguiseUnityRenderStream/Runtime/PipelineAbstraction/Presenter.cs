@@ -221,7 +221,7 @@ namespace Disguise.RenderStream
 
             const RenderTexture mainDisplay = default;
             CoreUtils.SetRenderTarget(cmd, mainDisplay);
-            cmd.ClearRenderTarget(true, true, Color.black);
+            cmd.ClearRenderTarget(false, true, Color.black);
             
             context.ExecuteCommandBuffer(cmd);
             
@@ -249,6 +249,9 @@ namespace Disguise.RenderStream
 
         static bool IsValidContext(ScriptableRenderContext context, List<Camera> cameras)
         {
+            if (cameras.Count == 0)
+                return false;
+            
             foreach (var cam in cameras)
             {
                 if (cam.cameraType != CameraType.Game)
