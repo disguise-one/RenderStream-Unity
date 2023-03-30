@@ -27,13 +27,13 @@ class DisguiseRenderStreamSettings : ScriptableObject
     public SceneControl sceneControl = SceneControl.Manual;
     
     /// <summary>
-    /// When true, the Unity window will be able to display streams or live textures to the local screen.
+    /// When true, the Unity window will be able to display streams or live textures to the local screen for debug purposes.
     /// The generated schema will include remote parameters to select the texture to display and how to resize it to fit the screen.
     /// </summary>
-    [Tooltip("When true, the Unity window will be able to display streams or live textures to the local screen.\n" +
+    [Tooltip("When true, the Unity window will be able to display streams or live textures to the local screen for debug purposes.\n" +
              "The generated schema will include remote parameters to select the texture to display and how to resize it to fit the screen.")]
     [SerializeField]
-    public bool exposePresenter = true;
+    public bool enableUnityDebugWindowPresenter = true;
 
     static DisguiseRenderStreamSettings s_CachedSettings;
     

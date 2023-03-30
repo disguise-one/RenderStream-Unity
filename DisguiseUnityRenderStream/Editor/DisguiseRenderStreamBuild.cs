@@ -142,7 +142,7 @@ namespace Disguise.RenderStream
                 processScene.Invoke(scene);
             }
             
-            if (settings.exposePresenter)
+            if (settings.enableUnityDebugWindowPresenter)
             {
                 AddPresenterToSchema(m_Schema);
             }
@@ -194,7 +194,7 @@ namespace Disguise.RenderStream
         {
             foreach (var scene in schema.scenes)
             {
-                var presenterParameters = DisguisePresenter.GetManagedRemoteParameters(schema, scene);
+                var presenterParameters = UnityDebugWindowPresenter.GetManagedRemoteParameters(schema, scene);
                 scene.parameters = presenterParameters.Concat(scene.parameters).ToArray();
             }
         }

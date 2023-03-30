@@ -21,7 +21,7 @@ namespace Disguise.RenderStream
     /// 2. Presenting a texture to the screen according to <see cref="Selected"/> and <see cref="ResizeStrategy"/>.
     /// </para>
     /// </remarks>
-    class DisguisePresenter : MonoBehaviour
+    class UnityDebugWindowPresenter : MonoBehaviour
     {
         /// <summary>
         /// This is a user-friendly subset of <see cref="BlitStrategy.Strategy"/>.
@@ -40,7 +40,6 @@ namespace Disguise.RenderStream
             Clamp
         }
 
-        const string k_PrefabPath = "DisguisePresenter";
         const string k_NoneTextureLabel = "None";
 
         /// <summary>
@@ -96,7 +95,7 @@ namespace Disguise.RenderStream
         /// <returns></returns>
         public static GameObject LoadPrefab()
         {
-            return Resources.Load<GameObject>(k_PrefabPath);
+            return Resources.Load<GameObject>(nameof(UnityDebugWindowPresenter));
         }
         
 #if UNITY_EDITOR
@@ -155,7 +154,7 @@ namespace Disguise.RenderStream
         /// <remarks>
         /// This class should only be instantiated through <see cref="LoadPrefab"/>.
         /// </remarks>
-        private DisguisePresenter()
+        private UnityDebugWindowPresenter()
         {
             
         }

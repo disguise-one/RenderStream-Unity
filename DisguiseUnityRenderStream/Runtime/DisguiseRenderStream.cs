@@ -87,9 +87,9 @@ namespace Disguise.RenderStream
 
         void OnSceneLoaded(Scene loadedScene, LoadSceneMode mode)
         {
-            if (DisguiseRenderStreamSettings.GetOrCreateSettings().exposePresenter)
+            if (DisguiseRenderStreamSettings.GetOrCreateSettings().enableUnityDebugWindowPresenter)
             {
-                GameObject.Instantiate(DisguisePresenter.LoadPrefab());
+                GameObject.Instantiate(UnityDebugWindowPresenter.LoadPrefab());
             }
             
             CreateStreams();

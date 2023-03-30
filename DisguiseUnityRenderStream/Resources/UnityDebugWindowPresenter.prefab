@@ -62,7 +62,7 @@ GameObject:
   - component: {fileID: 360651681440703412}
   - component: {fileID: 360651681440703411}
   m_Layer: 0
-  m_Name: DisguisePresenter
+  m_Name: UnityDebugWindowPresenter
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -114,14 +114,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   exposedObject: {fileID: 360651681440703412}
-  prefix: unity-screen-presenter
+  prefix: unity-debug-window-presenter
   fields:
   - exposed: 1
     fieldName: Selected
-    groupName: Local Screen Presenter
+    groupName: Unity Debug Window Presenter
   - exposed: 1
     fieldName: Resize Strategy
-    groupName: Local Screen Presenter
+    groupName: Unity Debug Window Presenter
 --- !u!1 &360651682882557473
 GameObject:
   m_ObjectHideFlags: 0
