@@ -71,7 +71,7 @@ namespace Disguise.RenderStream
         bool m_autoFlipY = true;
         
         [SerializeField]
-        bool m_clearScreen;
+        bool m_clearScreen = true;
         
         Backend m_backEnd;
 
@@ -99,7 +99,7 @@ namespace Disguise.RenderStream
         public RenderTexture source
         {
             get => m_source;
-            protected set => m_source = value;
+            set => m_source = value;
         }
         
         /// <summary>
@@ -126,6 +126,15 @@ namespace Disguise.RenderStream
         public Vector2 sourceSize => new Vector2(m_source.width, m_source.height);
         
         public Vector2 targetSize => new Vector2(Screen.width, Screen.height);
+        
+        Backend CreateBackend()
+        {
+#if UNITY_EDITOR
+            return m_backEnd = new EditorBackend(this);
+#else
+            return m_backEnd = new PlayerBackend(this);
+#endif
+        }
 
         /// <summary>
         /// Can override to setup <see cref="m_source"/>.
@@ -136,24 +145,24 @@ namespace Disguise.RenderStream
             Debug.LogWarning($"{nameof(Presenter)} only supports SDR output, but HDR Display Output is allowed in the Project Settings.");
 #endif
             
-#if UNITY_EDITOR
-            m_backEnd = new EditorBackend(this);
-#else
-            m_backEnd = new PlayerBackend(this);
-#endif
+            RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
+
+            if (m_backEnd == null)
+                m_backEnd = CreateBackend();
             
             m_backEnd.Enable();
         }
         
         protected virtual void OnDisable()
         {
-            m_backEnd.Disable();
-        }
+            RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
 
-        protected virtual void Update()
-        {
+            // When no Cameras are rendering to the screen the previous frame
+            // will remain until the next clear. Force a clear to avoid this:
             if (m_clearScreen)
-                ClearScreen();
+                RenderPipelineManager.beginContextRendering += ClearScreenOnce;
+            
+            m_backEnd.Disable();
         }
         
         /// <summary>
@@ -206,17 +215,50 @@ namespace Disguise.RenderStream
             BlitExtended.Instance.BlitQuad(cmd, m_source, GetColorSpaceConversion(), srcScaleBias, dstScaleBias);
         }
         
-        void ClearScreen()
+        static void ClearScreen(ScriptableRenderContext context)
         {
-            CommandBuffer cmd = CommandBufferPool.Get(k_profilerClearTag);
+            var cmd = CommandBufferPool.Get(k_profilerClearTag);
 
             const RenderTexture mainDisplay = default;
             CoreUtils.SetRenderTarget(cmd, mainDisplay);
-            cmd.ClearRenderTarget(true, true, Color.black);
+            cmd.ClearRenderTarget(false, true, Color.black);
             
-            Graphics.ExecuteCommandBuffer(cmd);
+            context.ExecuteCommandBuffer(cmd);
             
             CommandBufferPool.Release(cmd);
+        }
+        
+        void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            if (!IsValidContext(context, cameras))
+                return;
+            
+            if (clearScreen)
+                ClearScreen(context);
+        }
+
+        static void ClearScreenOnce(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            if (!IsValidContext(context, cameras))
+                return;
+            
+            ClearScreen(context);
+            
+            RenderPipelineManager.beginContextRendering -= ClearScreenOnce;
+        }
+
+        static bool IsValidContext(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            if (cameras.Count == 0)
+                return false;
+            
+            foreach (var cam in cameras)
+            {
+                if (cam.cameraType != CameraType.Game)
+                    return false;
+            }
+
+            return true;
         }
         
         abstract class Backend
@@ -268,7 +310,7 @@ namespace Disguise.RenderStream
                     if (!ShouldRun)
                         continue;
                 
-                    CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
+                    var cmd = CommandBufferPool.Get(k_profilerTag);
                     m_presenter.IssueCommands(cmd);
 
                     Graphics.ExecuteCommandBuffer(cmd);
@@ -299,16 +341,15 @@ namespace Disguise.RenderStream
                 RenderPipelineManager.endContextRendering -= OnEndContextRendering;
             }
         
-            void OnEndContextRendering(ScriptableRenderContext context, List<Camera> _)
+            void OnEndContextRendering(ScriptableRenderContext context, List<Camera> cameras)
             {
                 if (!ShouldRun)
                     return;
                 
-                // Check that we're in the correct context (ex not rendering probes)
-                if (RenderTexture.active != null)
+                if (!IsValidContext(context, cameras))
                     return;
                 
-                CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
+                var cmd = CommandBufferPool.Get(k_profilerTag);
                 m_presenter.IssueCommands(cmd);
 
                 context.ExecuteCommandBuffer(cmd);

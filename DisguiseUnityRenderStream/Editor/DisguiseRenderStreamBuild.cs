@@ -141,6 +141,11 @@ namespace Disguise.RenderStream
 
                 processScene.Invoke(scene);
             }
+            
+            if (settings.enableUnityDebugWindowPresenter)
+            {
+                AddPresenterToSchema(m_Schema);
+            }
 
             var pathToBuiltProject = report.summary.outputPath;
             RS_ERROR error = PluginEntry.instance.saveSchema(pathToBuiltProject, ref m_Schema);
@@ -183,6 +188,15 @@ namespace Disguise.RenderStream
                 .SelectMany(p => p.exposedParameters()));
             
             currentScene.parameters = parameters.ToArray();
+        }
+
+        static void AddPresenterToSchema(ManagedSchema schema)
+        {
+            foreach (var scene in schema.scenes)
+            {
+                var presenterParameters = UnityDebugWindowPresenter.GetManagedRemoteParameters(schema, scene);
+                scene.parameters = presenterParameters.Concat(scene.parameters).ToArray();
+            }
         }
         
         /// <summary>

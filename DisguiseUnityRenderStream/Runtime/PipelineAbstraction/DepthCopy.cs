@@ -72,7 +72,7 @@ namespace Disguise.RenderStream
 
             ValidatePipeline();
             
-            CommandBuffer cmd = CommandBufferPool.Get(k_profilerTag);
+            var cmd = CommandBufferPool.Get(k_profilerTag);
             IssueCommands(cmd, depthOutput, mode);
             
             context.ExecuteCommandBuffer(cmd);

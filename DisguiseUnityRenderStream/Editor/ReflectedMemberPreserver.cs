@@ -106,7 +106,7 @@ namespace Disguise.RenderStream
                             }
                             default:
                             {
-                                throw new NotImplementedException($"Unsupported {typeof(MemberInfo)} subtype");
+                                throw new NotImplementedException($"Unsupported {nameof(MemberInfo)} subtype");
                             }
                         }
                     }
