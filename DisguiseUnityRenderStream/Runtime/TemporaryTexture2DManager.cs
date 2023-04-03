@@ -9,7 +9,7 @@ using Debug = UnityEngine.Debug;
 
 namespace Disguise.RenderStream
 {
-    public struct Texture2DDescriptor : IEquatable<Texture2DDescriptor>
+    struct Texture2DDescriptor : IEquatable<Texture2DDescriptor>
     {
         public int Width;
         public int Height;
@@ -64,7 +64,7 @@ namespace Disguise.RenderStream
     ///
     /// <remarks>Lifetime doesn't grow during frames where no textures from the pool were used.</remarks>
     /// </summary>
-    public class TemporaryTexture2DManager
+    class TemporaryTexture2DManager
     {
         struct FinishFrameRendering { }
         
