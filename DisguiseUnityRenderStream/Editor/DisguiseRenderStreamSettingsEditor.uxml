@@ -1,0 +1,4 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <uie:PropertyField label="Scene Control" binding-path="sceneControl" />
+    <uie:PropertyField label="Unity Debug Window Presenter" binding-path="enableUnityDebugWindowPresenter" />
+</ui:UXML>
