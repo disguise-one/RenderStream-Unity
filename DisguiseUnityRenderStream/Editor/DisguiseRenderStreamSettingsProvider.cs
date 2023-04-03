@@ -1,5 +1,4 @@
 using UnityEditor;
-using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
 namespace Disguise.RenderStream
@@ -7,7 +6,6 @@ namespace Disguise.RenderStream
     static class DisguiseRenderStreamSettingsProvider
     {
         static readonly string k_SettingsPath = "Project/DisguiseRenderStream";
-        const string k_StyleSheetCommon = "Packages/com.unity.cluster-display/Editor/UI/SettingsWindowCommon.uss";
 
         class Contents
         {
