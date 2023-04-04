@@ -1,0 +1,12 @@
+.disguise-settings-container
+{
+    margin-left: 9px;
+    margin-top: 1px;
+}
+
+.disguise-settings-title
+{
+    font-size: 19px;
+    -unity-font-style: bold;
+    margin-bottom: 12px;
+}
