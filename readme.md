@@ -8,7 +8,7 @@ A **Demo Unity Project** can be found on the [disguise Resources page](https://d
 
 ## Importing the RenderStream Unity Plugin
 
-Install this package using the Package Manager from a [Git URL](https://docs.unity3d.com/Manual/upm-ui-giturl.html) or from [a local folder](https://docs.unity3d.com/Manual/upm-ui-local.html)
+Install this package using the [Package Manager](https://docs.unity3d.com/Manual/upm-ui.html) from a [Git URL](https://docs.unity3d.com/Manual/upm-ui-giturl.html) or from [a local folder](https://docs.unity3d.com/Manual/upm-ui-local.html)
  
 ## Using the RenderStream Unity Plugin
 
