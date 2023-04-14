@@ -8,14 +8,11 @@ A **Demo Unity Project** can be found on the [disguise Resources page](https://d
 
 ## Importing the RenderStream Unity Plugin
 
-*  Copy/Import the top-level **DisguiseUnityRenderStream** folder to your Unity Project's **Assets** folder.
-*  If there is an error about unsafe code:
-    *  Go to File > Build Settings > Player Settings... > Other Settings
-    *  Tick allow 'unsafe' code, this is project wide and should not be done unless Unity ignores the asmdef for this plugin.
+Install this package using the Package Manager from a [Git URL](https://docs.unity3d.com/Manual/upm-ui-giturl.html) or from [a local folder](https://docs.unity3d.com/Manual/upm-ui-local.html)
  
 ## Using the RenderStream Unity Plugin
 
-The act of importing the **DisguiseUnityRenderStream** plugin to your Unity Project's Asset folder, is enough to enable RenderStream in your built executable.
+The act of adding this package to your Unity project, is enough to enable RenderStream in your built executable.
 
 More control can be added using the included Disguise RenderStream components:
 
