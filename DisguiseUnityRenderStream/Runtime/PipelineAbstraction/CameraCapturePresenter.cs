@@ -59,9 +59,11 @@ namespace Disguise.RenderStream
                 m_cameraCapture = GetComponent<CameraCapture>();
         }
         
-        void Update()
+        protected override void Update()
         {
             Assign(m_cameraCapture);
+            
+            base.Update();
         }
 
         void Assign(CameraCapture capture)

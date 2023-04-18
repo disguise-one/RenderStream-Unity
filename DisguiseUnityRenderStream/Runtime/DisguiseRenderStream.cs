@@ -57,11 +57,12 @@ namespace Disguise.RenderStream
         }
 
         struct RenderStreamUpdate { }
+        struct RenderStreamGfxUpdate { }
 
         protected virtual void Initialize()
         {
             PlayerLoopExtensions.RegisterUpdate<TimeUpdate.WaitForLastPresentationAndUpdateTime, RenderStreamUpdate>(AwaitFrame);
-            RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
+            PlayerLoopExtensions.RegisterUpdate<Update.ScriptRunBehaviourUpdate, RenderStreamGfxUpdate>(UpdateGfxResources);
         }
 
         protected DisguiseRenderStream(ManagedSchema schema)
@@ -389,7 +390,6 @@ namespace Disguise.RenderStream
         {
             RS_ERROR error = PluginEntry.instance.awaitFrameData(500, out var frameData);
             LatestFrameData = frameData;
-            m_HasUpdatedLiveTexturesThisFrame = false;
             
             if (error == RS_ERROR.RS_ERROR_QUIT)
                 Application.Quit();
@@ -416,7 +416,7 @@ namespace Disguise.RenderStream
         }
 
         // Updates the RenderTextures assigned to image parameters on the render thread to avoid stalling the main thread
-        void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+        void UpdateGfxResources()
         {
             if (!HasNewFrameData)
                 return;
@@ -428,16 +428,6 @@ namespace Disguise.RenderStream
             var images = m_SceneFields[LatestFrameData.scene].images;
             if (images == null)
                 return;
-
-            // Only run once per frame for the main render context
-            if (m_HasUpdatedLiveTexturesThisFrame)
-                return;
-            foreach (var camera in cameras)
-            {
-                if (camera.cameraType != CameraType.Game)
-                    return;
-            }
-            m_HasUpdatedLiveTexturesThisFrame = true;
             
             var nImageParameters = spec.parameters.Count(t => t.type == RemoteParameterType.RS_PARAMETER_IMAGE);
 
@@ -497,7 +487,7 @@ namespace Disguise.RenderStream
 
             if (cmd != null)
             {
-                context.ExecuteCommandBuffer(cmd);
+                Graphics.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
             }
         }
@@ -560,6 +550,5 @@ namespace Disguise.RenderStream
         
         SceneFields[] m_SceneFields;
         DisguiseRenderStreamSettings m_Settings;
-        bool m_HasUpdatedLiveTexturesThisFrame;
     }
 }
