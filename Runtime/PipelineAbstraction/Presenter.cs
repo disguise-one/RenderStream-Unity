@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -73,7 +72,7 @@ namespace Disguise.RenderStream
         [SerializeField]
         bool m_clearScreen = true;
         
-        Backend m_backEnd;
+        Coroutine m_FrameLoop;
 
         /// <summary>
         /// Describes how to handle the size and aspect ratio differences between the <see cref="source"/> and the screen.
@@ -126,15 +125,6 @@ namespace Disguise.RenderStream
         public Vector2 sourceSize => new Vector2(m_source.width, m_source.height);
         
         public Vector2 targetSize => new Vector2(Screen.width, Screen.height);
-        
-        Backend CreateBackend()
-        {
-#if UNITY_EDITOR
-            return m_backEnd = new EditorBackend(this);
-#else
-            return m_backEnd = new PlayerBackend(this);
-#endif
-        }
 
         /// <summary>
         /// Can override to setup <see cref="m_source"/>.
@@ -144,27 +134,26 @@ namespace Disguise.RenderStream
 #if DISGUISE_UNITY_USE_HDR_DISPLAY
             Debug.LogWarning($"{nameof(Presenter)} only supports SDR output, but HDR Display Output is allowed in the Project Settings.");
 #endif
-            
-            RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
 
-            if (m_backEnd == null)
-                m_backEnd = CreateBackend();
-            
-            m_backEnd.Enable();
+            m_FrameLoop = StartCoroutine(FrameLoop());
         }
         
         protected virtual void OnDisable()
         {
-            RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
-
             // When no Cameras are rendering to the screen the previous frame
             // will remain until the next clear. Force a clear to avoid this:
             if (m_clearScreen)
-                RenderPipelineManager.beginContextRendering += ClearScreenOnce;
+                ClearScreen();
             
-            m_backEnd.Disable();
+            StopCoroutine(m_FrameLoop);
+            m_FrameLoop = null;
         }
-        
+
+        protected virtual void Update()
+        {
+            OnBeginFrame();
+        }
+
         /// <summary>
         /// Get the destination UV transformations to pass to the <see cref="Blitter"/> API.
         /// </summary>
@@ -215,7 +204,7 @@ namespace Disguise.RenderStream
             BlitExtended.Instance.BlitQuad(cmd, m_source, GetColorSpaceConversion(), srcScaleBias, dstScaleBias);
         }
         
-        static void ClearScreen(ScriptableRenderContext context)
+        static void ClearScreen()
         {
             var cmd = CommandBufferPool.Get(k_profilerClearTag);
 
@@ -223,141 +212,33 @@ namespace Disguise.RenderStream
             CoreUtils.SetRenderTarget(cmd, mainDisplay);
             cmd.ClearRenderTarget(false, true, Color.black);
             
-            context.ExecuteCommandBuffer(cmd);
+            Graphics.ExecuteCommandBuffer(cmd);
             
             CommandBufferPool.Release(cmd);
         }
         
-        void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+        void OnBeginFrame()
         {
-            if (!IsValidContext(context, cameras))
-                return;
-            
             if (clearScreen)
-                ClearScreen(context);
-        }
-
-        static void ClearScreenOnce(ScriptableRenderContext context, List<Camera> cameras)
-        {
-            if (!IsValidContext(context, cameras))
-                return;
-            
-            ClearScreen(context);
-            
-            RenderPipelineManager.beginContextRendering -= ClearScreenOnce;
-        }
-
-        static bool IsValidContext(ScriptableRenderContext context, List<Camera> cameras)
-        {
-            if (cameras.Count == 0)
-                return false;
-            
-            foreach (var cam in cameras)
-            {
-                if (cam.cameraType != CameraType.Game)
-                    return false;
-            }
-
-            return true;
+                ClearScreen();
         }
         
-        abstract class Backend
+        IEnumerator FrameLoop()
         {
-            protected readonly Presenter m_presenter;
-            
-            protected Backend(Presenter presenter)
+            while (true)
             {
-                m_presenter = presenter;
-            }
-
-            protected bool ShouldRun => m_presenter.IsValid;
-        
-            public abstract void Enable();
-            public abstract void Disable();
-        }
-        
-#if UNITY_EDITOR
-        /// <summary>
-        /// Drawing after WaitForEndOfFrame ensures that we target the editor's intermediate "GameView RT" instead of the screen.
-        /// </summary>
-        class EditorBackend : Backend
-        {
-            Coroutine m_FrameLoop;
-            
-            public EditorBackend(Presenter presenter):
-                base(presenter)
-            {
-                
-            }
-            
-            public override void Enable()
-            {
-                m_FrameLoop = m_presenter.StartCoroutine(FrameLoop());
-            }
-        
-            public override void Disable()
-            {
-                m_presenter.StopCoroutine(m_FrameLoop);
-                m_FrameLoop = null;
-            }
-            
-            IEnumerator FrameLoop()
-            {
-                while (true)
-                {
-                    yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
                     
-                    if (!ShouldRun)
-                        continue;
-                
-                    var cmd = CommandBufferPool.Get(k_profilerTag);
-                    m_presenter.IssueCommands(cmd);
-
-                    Graphics.ExecuteCommandBuffer(cmd);
-                    
-                    CommandBufferPool.Release(cmd);
-                }
-            }
-        }
-#else
-        /// <summary>
-        /// In the player we can draw directly to the screen.
-        /// </summary>
-        class PlayerBackend : Backend
-        {
-            public PlayerBackend(Presenter presenter):
-                base(presenter)
-            {
-                
-            }
-            
-            public override void Enable()
-            {
-                RenderPipelineManager.endContextRendering += OnEndContextRendering;
-            }
-        
-            public override void Disable()
-            {
-                RenderPipelineManager.endContextRendering -= OnEndContextRendering;
-            }
-        
-            void OnEndContextRendering(ScriptableRenderContext context, List<Camera> cameras)
-            {
-                if (!ShouldRun)
-                    return;
-                
-                if (!IsValidContext(context, cameras))
-                    return;
+                if (!IsValid)
+                    continue;
                 
                 var cmd = CommandBufferPool.Get(k_profilerTag);
-                m_presenter.IssueCommands(cmd);
+                IssueCommands(cmd);
 
-                context.ExecuteCommandBuffer(cmd);
-                context.Submit();
-        
+                Graphics.ExecuteCommandBuffer(cmd);
+                    
                 CommandBufferPool.Release(cmd);
             }
         }
-#endif
     }
 }
