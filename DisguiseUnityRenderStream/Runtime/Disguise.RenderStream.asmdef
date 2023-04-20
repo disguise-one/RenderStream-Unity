@@ -19,7 +19,7 @@
             "name": "com.unity.cluster-display",
             "expression": "0.0.0",
             "define": "ENABLE_CLUSTER_DISPLAY"
-        },
+        }
     ],
     "noEngineReferences": false
 }
