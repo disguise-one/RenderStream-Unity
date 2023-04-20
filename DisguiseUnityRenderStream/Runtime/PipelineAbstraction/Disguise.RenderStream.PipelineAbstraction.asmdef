@@ -15,11 +15,6 @@
 	"defineConstraints": [],
 	"versionDefines": [
 		{
-			"name": "com.unity.cluster-display",
-			"expression": "0.0.0",
-			"define": "ENABLE_CLUSTER_DISPLAY"
-		},
-		{
 			"name": "com.unity.render-pipelines.high-definition",
 			"expression": "13.1.8",
 			"define": "HDRP_VERSION_SUPPORTED"
