@@ -62,6 +62,11 @@ namespace Disguise.RenderStream
         protected virtual void Initialize()
         {
             PlayerLoopExtensions.RegisterUpdate<TimeUpdate.WaitForLastPresentationAndUpdateTime, RenderStreamUpdate>(AwaitFrame);
+            InitializeGfxResources();
+        }
+        
+        protected void InitializeGfxResources()
+        {
             PlayerLoopExtensions.RegisterUpdate<Update.ScriptRunBehaviourUpdate, RenderStreamGfxUpdate>(UpdateGfxResources);
         }
 
