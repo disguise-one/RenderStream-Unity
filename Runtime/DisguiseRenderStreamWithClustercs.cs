@@ -106,6 +106,8 @@ namespace Disguise.RenderStream
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+
+            InitializeGfxResources();
         }
 
         void PublishEmitterEvents() => m_FrameDataBus.Publish(LatestFrameData);
