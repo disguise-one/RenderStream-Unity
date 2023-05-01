@@ -36,7 +36,12 @@ namespace Disguise.RenderStream
 
         public static PluginEntry instance { get { return Nested.instance; } }
 
-        // Should match NativeRenderingPlugin::ToDXFormat in the native plugin's DX12Texture.h
+        /// <summary>
+        /// Returns the <see cref="GraphicsFormat"/> that matches a RenderStream <see cref="RSPixelFormat"/>.
+        /// </summary>
+        /// <param name="fmt">The RenderStream format.</param>
+        /// <param name="sRGB">When true, an sRGB variant will be picked if it exists.</param>
+        /// <remarks>Should match NativeRenderingPlugin::ToDXFormat in the native plugin's DX12Texture.h.</remarks>
         public static GraphicsFormat ToGraphicsFormat(RSPixelFormat fmt, bool sRGB)
         {
             // All textures are expected in the normalized 0-1 range.
@@ -44,20 +49,26 @@ namespace Disguise.RenderStream
             return fmt switch
             {
                 RSPixelFormat.RS_FMT_BGRA8 or RSPixelFormat.RS_FMT_BGRX8 => sRGB ? GraphicsFormat.B8G8R8A8_SRGB : GraphicsFormat.B8G8R8A8_UNorm,
-                RSPixelFormat.RS_FMT_RGBA32F => GraphicsFormat.R32G32B32_SFloat, // Has no UNorm format
+                RSPixelFormat.RS_FMT_RGBA32F => GraphicsFormat.R32G32B32A32_SFloat,
                 RSPixelFormat.RS_FMT_RGBA16 => GraphicsFormat.R16G16B16A16_UNorm,
                 RSPixelFormat.RS_FMT_RGBA8 or RSPixelFormat.RS_FMT_RGBX8 => sRGB ? GraphicsFormat.R8G8B8A8_SRGB : GraphicsFormat.R8G8B8A8_UNorm,    
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
         
+        /// <summary>
+        /// Returns the <see cref="TextureFormat"/> that matches a RenderStream <see cref="RSPixelFormat"/>.
+        /// This should really only be used for <see cref="Texture2D.CreateExternalTexture"/>,
+        /// and not for actually creating textures because it doesn't carry any color space information.
+        /// </summary>
+        /// <remarks>Should match NativeRenderingPlugin::ToDXFormat in the native plugin's DX12Texture.h.</remarks>
         public static TextureFormat ToTextureFormat(RSPixelFormat fmt)
         {
             return fmt switch
             {
                 RSPixelFormat.RS_FMT_BGRA8 or RSPixelFormat.RS_FMT_BGRX8 => TextureFormat.BGRA32,
                 RSPixelFormat.RS_FMT_RGBA32F => TextureFormat.RGBAFloat,
-                RSPixelFormat.RS_FMT_RGBA16 => TextureFormat.RGBAHalf,
+                RSPixelFormat.RS_FMT_RGBA16 => TextureFormat.RGBA64,
                 RSPixelFormat.RS_FMT_RGBA8 or RSPixelFormat.RS_FMT_RGBX8 => TextureFormat.RGBA32,
                 _ => throw new ArgumentOutOfRangeException()
             };
