@@ -25,7 +25,9 @@ namespace Disguise.RenderStream
                     if (heapFlag == UseDX12SharedHeapFlag.RS_DX12_USE_SHARED_HEAP_FLAG)
                     {
                         var nativeTex = NativeRenderingPlugin.CreateNativeTexture(name, width, height, format, sRGB);
-                        texture = Texture2D.CreateExternalTexture(width, height, PluginEntry.ToTextureFormat(format), false, !sRGB, nativeTex);
+                        var graphicsFormat = PluginEntry.ToGraphicsFormat(format, sRGB);
+                        var textureFormat = GraphicsFormatUtility.GetTextureFormat(graphicsFormat);
+                        texture = Texture2D.CreateExternalTexture(width, height, textureFormat, false, !sRGB, nativeTex);
                         
                         break;
                     }

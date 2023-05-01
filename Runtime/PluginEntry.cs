@@ -55,24 +55,6 @@ namespace Disguise.RenderStream
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
-        
-        /// <summary>
-        /// Returns the <see cref="TextureFormat"/> that matches a RenderStream <see cref="RSPixelFormat"/>.
-        /// This should really only be used for <see cref="Texture2D.CreateExternalTexture"/>,
-        /// and not for actually creating textures because it doesn't carry any color space information.
-        /// </summary>
-        /// <remarks>Should match NativeRenderingPlugin::ToDXFormat in the native plugin's DX12Texture.h.</remarks>
-        public static TextureFormat ToTextureFormat(RSPixelFormat fmt)
-        {
-            return fmt switch
-            {
-                RSPixelFormat.RS_FMT_BGRA8 or RSPixelFormat.RS_FMT_BGRX8 => TextureFormat.BGRA32,
-                RSPixelFormat.RS_FMT_RGBA32F => TextureFormat.RGBAFloat,
-                RSPixelFormat.RS_FMT_RGBA16 => TextureFormat.RGBA64,
-                RSPixelFormat.RS_FMT_RGBA8 or RSPixelFormat.RS_FMT_RGBX8 => TextureFormat.RGBA32,
-                _ => throw new ArgumentOutOfRangeException()
-            };
-        }
 
         // isolated functions, do not require init prior to use
         unsafe delegate void pRegisterLogFunc(logger_t logger);
