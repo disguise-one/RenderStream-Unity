@@ -241,7 +241,7 @@ namespace Disguise.RenderStream
                     for (int k = 0; k < parameter.nOptions; ++k)
                     {
                         IntPtr optionPtr = Marshal.ReadIntPtr(parameter.options, k * Marshal.SizeOf(typeof(IntPtr)));
-                        managedParameter.options[i] = Marshal.PtrToStringAnsi(optionPtr);
+                        managedParameter.options[k] = Marshal.PtrToStringAnsi(optionPtr);
                     }
                     managedParameter.dmxOffset = parameter.dmxOffset;
                     managedParameter.dmxType = parameter.dmxType;

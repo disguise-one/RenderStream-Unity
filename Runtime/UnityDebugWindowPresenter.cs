@@ -233,13 +233,21 @@ namespace Disguise.RenderStream
 
         void RefreshOutput()
         {
-            m_Outputs = FindObjectsByType<DisguiseCameraCapture>(
-                FindObjectsSortMode.InstanceID).Select(
-                    x => x.GetComponent<CameraCapture>()).ToArray();
+            var channels = DisguiseRenderStream.Instance.Schema.channels;
+            Array.Resize(ref m_Outputs, channels.Length);
+            Array.Fill(m_Outputs, null);
+            
+            // The list of streams is an unordered subset of the list of channels
+            foreach (var stream in DisguiseRenderStream.Instance.Streams)
+            {
+                var index = Array.IndexOf(channels, stream.description.channel);
+                m_Outputs[index] = stream.capture.Capture;
+            }
         }
         
         void RefreshInput()
         {
+            // InputTextures are in the same order as in the schema, no sorting required
             m_Inputs = DisguiseRenderStream.Instance.InputTextures.ToArray();
         }
     }

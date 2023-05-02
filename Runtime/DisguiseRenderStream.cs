@@ -35,7 +35,7 @@ namespace Disguise.RenderStream
                 return;
             }
 
-            string pathToBuiltProject = ApplicationPath.GetExecutablePath();;
+            string pathToBuiltProject = ApplicationPath.GetExecutablePath();
             RS_ERROR error = PluginEntry.instance.LoadSchema(pathToBuiltProject, out var schema);
             if (error != RS_ERROR.RS_ERROR_SUCCESS)
             {
@@ -87,7 +87,7 @@ namespace Disguise.RenderStream
                 m_SceneFields = new SceneFields[schema.scenes.Length];
                 CreateStreams();
             }
-            m_Schema = schema;
+            Schema = schema;
             m_Settings = DisguiseRenderStreamSettings.GetOrCreateSettings();
         }
 
@@ -108,7 +108,7 @@ namespace Disguise.RenderStream
                     break;
             }
             DisguiseRemoteParameters[] remoteParameters = UnityEngine.Object.FindObjectsByType(typeof(DisguiseRemoteParameters), FindObjectsSortMode.None) as DisguiseRemoteParameters[];
-            ManagedRemoteParameters scene = m_Schema.scenes[sceneIndex];
+            ManagedRemoteParameters scene = Schema.scenes[sceneIndex];
             m_SceneFields[sceneIndex] = new SceneFields{ numerical = new List<ObjectField>(), images = new List<ObjectField>(), texts = new List<ObjectField>() };
             SceneFields fields = m_SceneFields[sceneIndex];
             for (int j = 0; j < scene.parameters.Length;)
@@ -191,9 +191,11 @@ namespace Disguise.RenderStream
                 return;
             }
 
+            StreamDescription[] streams;
+
             do
             {
-                RS_ERROR error = PluginEntry.instance.getStreams(out var streams);
+                RS_ERROR error = PluginEntry.instance.getStreams(out streams);
                 if (error != RS_ERROR.RS_ERROR_SUCCESS)
                 {
                     Debug.LogError(string.Format("DisguiseRenderStream: Failed to get streams {0}", error));
@@ -201,19 +203,19 @@ namespace Disguise.RenderStream
                 }
 
                 Debug.Assert(streams != null);
-                Streams = streams;
-                if (Streams.Length == 0)
+                if (streams.Length == 0)
                 {
                     Debug.Log("Waiting for streams...");
                     Thread.Sleep(1000);
                 }
-            } while (Streams.Length == 0);
+            } while (streams.Length == 0);
 
-            Debug.Log(string.Format("Found {0} streams", Streams.Length));
+            Debug.Log(string.Format("Found {0} streams", streams.Length));
             
-            foreach (var camera in m_Cameras)
-                UnityEngine.Object.Destroy(camera);
-            m_Cameras = new GameObject[Streams.Length];
+            foreach (var stream in m_Streams)
+                UnityEngine.Object.Destroy(stream.camera.gameObject);
+            
+            Array.Resize(ref m_Streams, streams.Length);
 
             // cache the template cameras prior to instantiating our instance cameras 
             Camera[] templateCameras = getTemplateCameras();
@@ -221,38 +223,46 @@ namespace Disguise.RenderStream
             
             ScratchTexture2DManager.Instance.Clear();
 
-            for (int i = 0; i < Streams.Length; ++i)
-            {        
-                StreamDescription stream = Streams[i];
-                Camera channelCamera = DisguiseRenderStream.GetChannelCamera(stream.channel);
+            for (int i = 0; i < m_Streams.Length; ++i)
+            {
+                StreamDescription stream = streams[i];
+                m_Streams[i].description = stream;
+                
+                Camera channelCamera = GetChannelCamera(stream.channel);
+                GameObject cameraObject;
                 if (channelCamera)
                 {
-                    m_Cameras[i] = UnityEngine.Object.Instantiate(channelCamera.gameObject, channelCamera.gameObject.transform);
-                    m_Cameras[i].name = stream.name;
+                    cameraObject = UnityEngine.Object.Instantiate(channelCamera.gameObject, channelCamera.gameObject.transform);
+                    cameraObject.name = stream.name;
                 }
                 else if (Camera.main)
                 {
-                    m_Cameras[i] = UnityEngine.Object.Instantiate(Camera.main.gameObject, Camera.main.gameObject.transform);
-                    m_Cameras[i].name = stream.name;
+                    cameraObject = UnityEngine.Object.Instantiate(Camera.main.gameObject, Camera.main.gameObject.transform);
+                    cameraObject.name = stream.name;
                 }
                 else
                 {
-                    m_Cameras[i] = new GameObject(stream.name);
-                    m_Cameras[i].AddComponent<Camera>();
+                    cameraObject = new GameObject(stream.name);
+                    cameraObject.AddComponent<Camera>();
                 }
 
-                m_Cameras[i].transform.localPosition = Vector3.zero;
-                m_Cameras[i].transform.localRotation = Quaternion.identity;
+                cameraObject.transform.localPosition = Vector3.zero;
+                cameraObject.transform.localRotation = Quaternion.identity;
             
-                GameObject cameraObject = m_Cameras[i];
                 Camera camera = cameraObject.GetComponent<Camera>();
+                m_Streams[i].camera = camera;
+                
                 camera.enabled = true; // ensure the camera component is enable
                 camera.cullingMask &= cullUIOnly; // cull the UI so RenderStream and other error messages don't render to RenderStream outputs
-                DisguiseCameraCapture capture = cameraObject.GetComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
-                if (capture == null)
-                    capture = cameraObject.AddComponent(typeof(DisguiseCameraCapture)) as DisguiseCameraCapture;
+            }
 
-                camera.enabled = true;
+            for (int i = 0; i < m_Streams.Length; ++i)
+            {
+                var stream = m_Streams[i];
+                DisguiseCameraCapture capture = stream.camera.gameObject.GetComponent<DisguiseCameraCapture>();
+                if (capture == null)
+                    capture = stream.camera.gameObject.AddComponent<DisguiseCameraCapture>();
+                m_Streams[i].capture = capture;
             }
 
             // stop template cameras impacting performance
@@ -270,9 +280,9 @@ namespace Disguise.RenderStream
     
         protected void ProcessFrameData(in FrameData receivedFrameData)
         {
-            if (receivedFrameData.scene >= m_Schema.scenes.Length) return;
+            if (receivedFrameData.scene >= Schema.scenes.Length) return;
         
-            ManagedRemoteParameters spec = m_Schema.scenes[receivedFrameData.scene];
+            ManagedRemoteParameters spec = Schema.scenes[receivedFrameData.scene];
             SceneFields fields = m_SceneFields[receivedFrameData.scene];
             int nNumericalParameters = 0;
             int nTextParameters = 0;
@@ -426,10 +436,10 @@ namespace Disguise.RenderStream
             if (!HasNewFrameData)
                 return;
             
-            if (LatestFrameData.scene >= m_Schema.scenes.Length)
+            if (LatestFrameData.scene >= Schema.scenes.Length)
                 return;
         
-            var spec = m_Schema.scenes[LatestFrameData.scene];
+            var spec = Schema.scenes[LatestFrameData.scene];
             var images = m_SceneFields[LatestFrameData.scene].images;
             if (images == null)
                 return;
@@ -520,7 +530,9 @@ namespace Disguise.RenderStream
         
         public static Action StreamsChanged { get; set; } = delegate { };
 
-        public StreamDescription[] Streams { get; private set; } = { };
+        public ManagedSchema Schema { get; } = new ();
+
+        public IReadOnlyList<(StreamDescription description, Camera camera, DisguiseCameraCapture capture)> Streams => m_Streams;
         
         public IEnumerable<RenderTexture> InputTextures
         {
@@ -542,9 +554,8 @@ namespace Disguise.RenderStream
         public FrameData LatestFrameData { get; protected set; }
 
         public bool HasNewFrameData { get; protected set; }
-        
-        GameObject[] m_Cameras = { };
-        ManagedSchema m_Schema = new ();
+
+        (StreamDescription description, Camera camera, DisguiseCameraCapture capture)[] m_Streams = { };
 
         public struct SceneFields
         {

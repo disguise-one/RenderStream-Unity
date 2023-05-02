@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -8,6 +9,8 @@ namespace Disguise.RenderStream
     [RequireComponent(typeof(Camera))]
     public class DisguiseCameraCapture : MonoBehaviour
     {
+        internal CameraCapture Capture => m_capture;
+        
         Camera m_camera;
         FrameSender m_frameSender;
         CameraCapture m_capture;
@@ -29,7 +32,7 @@ namespace Disguise.RenderStream
             m_cameraData = new CameraData();
 
             m_camera = GetComponent<Camera>();
-            var stream = Array.Find(m_RenderStream.Streams, s => s.name == gameObject.name);
+            var stream = m_RenderStream.Streams.FirstOrDefault(x => x.camera.gameObject.name == gameObject.name).description;
             m_frameSender = new FrameSender(gameObject.name, stream);
 
             m_capture = gameObject.AddComponent<CameraCapture>();
