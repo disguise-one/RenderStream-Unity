@@ -32,7 +32,7 @@ namespace Disguise.RenderStream
             m_cameraData = new CameraData();
 
             m_camera = GetComponent<Camera>();
-            var stream = m_RenderStream.Streams.FirstOrDefault(x => x.camera.gameObject.name == gameObject.name).description;
+            var stream = m_RenderStream.Streams.FirstOrDefault(x => x.description.name == gameObject.name).description;
             m_frameSender = new FrameSender(gameObject.name, stream);
 
             m_capture = gameObject.AddComponent<CameraCapture>();
