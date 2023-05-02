@@ -6,9 +6,11 @@ For more info please refer to our [RenderStream and Unity Help page](https://hel
 
 A **Demo Unity Project** can be found on the [disguise Resources page](https://download.disguise.one/#resources)
 
-## Importing the RenderStream Unity Plugin
+## Installing the RenderStream Unity Plugin
 
-Install this package using the [Package Manager](https://docs.unity3d.com/Manual/upm-ui.html) from a [Git URL](https://docs.unity3d.com/Manual/upm-ui-giturl.html) or from [a local folder](https://docs.unity3d.com/Manual/upm-ui-local.html)
+Install this package using the [Package Manager](https://docs.unity3d.com/Manual/upm-ui.html), using one of these methods:
+* From a [Git URL](https://docs.unity3d.com/Manual/upm-ui-giturl.html)
+* Clone this repository and install from a [local folder](https://docs.unity3d.com/Manual/upm-ui-local.html)
  
 ## Using the RenderStream Unity Plugin
 
@@ -20,16 +22,30 @@ More control can be added using the included Disguise RenderStream components:
    * Note: you can enable/disable the exact GameObject properties using the List editor in the Unity Inspector.
 * **To add designer timeline control**, attach a Disguise RenderStream > **Time Control** component to a Playable Director
 
-## Building a RenderStream asset for disguise designer
+## Building a RenderStream asset for Disguise Designer
 
 To use your Unity Project with disguise designer, you build an executable and import it into your designer project. To do this:
 * Ensure Build Settings are set to build a **Windows x86_64** executable
 * Copy the build folder to your **RenderStream Projects** folder
-* In designer, set up a new RenderStream Layer and point the Asset to your built executable.
+* In Designer, set up a new RenderStream Layer and point the Asset to your built executable.
+
+## Optional: Cluster Rendering
+
+If you are running RenderStream in a cluster and you sychronization between nodes, you will also need to install the [Cluster Display](https://github.com/Unity-Technologies/ClusterDisplay) package, using one of these methods:
+
+* From the following git URL: https://github.com/Unity-Technologies/ClusterDisplay.git?path=/source/com.unity.cluster-display
+* Clone the repository and install the package locally from `path/to/repo/source/com.unity.cluster-display/package.json`
+
+The cluster is composed of one (1) emitter/controller plus one or more repeaters/followers. For example, if your cluster has 4 render nodes, then it has 1 emitter/controller + 3 repeaters/followers. It is important that you inform Unity of the number of repeaters in the cluster:
+
+* Before you build the project, can specify the number of repeaters in **Project Settings | Cluster Display** > **Repeater Count** (you can leave all other "Play in Editor" settings alone).
+![Cluster settings](Docs~/images/cluster-settings.png)
+* Optionally, after you've built the project, you can also specify (or override) the repeater/follower count in Designer by adding the following custom arguments in the "Engine Settings" of the Cluster Workload asset: `-followers`, `N` where `N` is the number of repeaters/followers in the cluster (1 less than the number of nodes).
+![Custom arguments](Docs~/images/custom-arguments.png)
 
 ## Notes:
 
-*  Without a disguise instance running and sending data to the Unity camera, if you run your scene the camera will be placed at the world origin and cannot be moved (it's position is overriden every frame).
-*  Firewall settings can interfere with transport streams. You may see a Windows security dialog pop-up the first time you run the asset.
+* The Scene Origin in Designer corresponds to the initial position of the camera in the Unity Scene.
+* Firewall settings can interfere with transport streams and/or cluster communication. You may see a Windows security dialog pop-up the first time you run the asset.
    * Click Enable / Allow on this Windows pop-up to allow RenderStream communication to/from designer.
 *  If the firewall is the problem check your outbound firewall rules on the Unity machine, and the inbound firewall rules on the disguise machine for either software being specifically blocked.
