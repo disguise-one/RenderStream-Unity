@@ -240,8 +240,8 @@ namespace Disguise.RenderStream
             // The list of streams is an unordered subset of the list of channels
             foreach (var stream in DisguiseRenderStream.Instance.Streams)
             {
-                var index = Array.IndexOf(channels, stream.description.channel);
-                m_Outputs[index] = stream.capture.Capture;
+                var index = Array.IndexOf(channels, stream.Description.channel);
+                m_Outputs[index] = stream.Capture.Capture;
             }
         }
         

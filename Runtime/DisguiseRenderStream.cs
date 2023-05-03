@@ -13,6 +13,13 @@ namespace Disguise.RenderStream
 {
     class DisguiseRenderStream
     {
+        public struct DisguiseStream
+        {
+            public StreamDescription Description;
+            public Camera Camera;
+            public DisguiseCameraCapture Capture;
+        }
+        
         /// <summary>
         /// Initializes RenderStream objects.
         /// </summary>
@@ -213,7 +220,7 @@ namespace Disguise.RenderStream
             Debug.Log(string.Format("Found {0} streams", streams.Length));
             
             foreach (var stream in m_Streams)
-                UnityEngine.Object.Destroy(stream.camera.gameObject);
+                UnityEngine.Object.Destroy(stream.Camera.gameObject);
             
             Array.Resize(ref m_Streams, streams.Length);
 
@@ -226,7 +233,7 @@ namespace Disguise.RenderStream
             for (int i = 0; i < m_Streams.Length; ++i)
             {
                 StreamDescription stream = streams[i];
-                m_Streams[i].description = stream;
+                m_Streams[i].Description = stream;
                 
                 Camera channelCamera = GetChannelCamera(stream.channel);
                 GameObject cameraObject;
@@ -250,7 +257,7 @@ namespace Disguise.RenderStream
                 cameraObject.transform.localRotation = Quaternion.identity;
             
                 Camera camera = cameraObject.GetComponent<Camera>();
-                m_Streams[i].camera = camera;
+                m_Streams[i].Camera = camera;
                 
                 camera.enabled = true; // ensure the camera component is enable
                 camera.cullingMask &= cullUIOnly; // cull the UI so RenderStream and other error messages don't render to RenderStream outputs
@@ -259,10 +266,10 @@ namespace Disguise.RenderStream
             for (int i = 0; i < m_Streams.Length; ++i)
             {
                 var stream = m_Streams[i];
-                DisguiseCameraCapture capture = stream.camera.gameObject.GetComponent<DisguiseCameraCapture>();
+                DisguiseCameraCapture capture = stream.Camera.gameObject.GetComponent<DisguiseCameraCapture>();
                 if (capture == null)
-                    capture = stream.camera.gameObject.AddComponent<DisguiseCameraCapture>();
-                m_Streams[i].capture = capture;
+                    capture = stream.Camera.gameObject.AddComponent<DisguiseCameraCapture>();
+                m_Streams[i].Capture = capture;
             }
 
             // stop template cameras impacting performance
@@ -532,7 +539,7 @@ namespace Disguise.RenderStream
 
         public ManagedSchema Schema { get; } = new ();
 
-        public IReadOnlyList<(StreamDescription description, Camera camera, DisguiseCameraCapture capture)> Streams => m_Streams;
+        public IReadOnlyList<DisguiseStream> Streams => m_Streams;
         
         public IEnumerable<RenderTexture> InputTextures
         {
@@ -555,7 +562,7 @@ namespace Disguise.RenderStream
 
         public bool HasNewFrameData { get; protected set; }
 
-        (StreamDescription description, Camera camera, DisguiseCameraCapture capture)[] m_Streams = { };
+        DisguiseStream[] m_Streams = { };
 
         public struct SceneFields
         {
