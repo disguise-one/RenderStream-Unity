@@ -768,6 +768,7 @@ namespace Disguise.RenderStream
         RS_FRAMETYPE_DX11_TEXTURE,
         RS_FRAMETYPE_DX12_TEXTURE,
         RS_FRAMETYPE_OPENGL_TEXTURE,
+		RS_FRAMETYPE_VULKAN_TEXTURE,
         RS_FRAMETYPE_UNKNOWN
     }
 
@@ -828,16 +829,14 @@ namespace Disguise.RenderStream
     public enum REMOTEPARAMETER_FLAGS : UInt32
     {
         REMOTEPARAMETER_NO_FLAGS = 0,
-        REMOTEPARAMETER_NO_SEQUENCE = 1
+        REMOTEPARAMETER_NO_SEQUENCE = 1,
+		REMOTEPARAMETER_READ_ONLY = 2
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct D3TrackingData
 	{
-		public float virtualZoomScale;
 		public byte virtualReprojectionRequired;
-		public float xRealCamera, yRealCamera, zRealCamera;
-		public float rxRealCamera, ryRealCamera, rzRealCamera;
 	}  // Tracking data required by d3 but not used to render content
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -852,6 +851,8 @@ namespace Disguise.RenderStream
         public float cx, cy;
         public float nearZ, farZ;
         public float orthoWidth;  // If > 0, an orthographic camera should be used
+		public float aperture; // Apply if > 0
+		public float focusDistance;  // Apply if > 0
 		public D3TrackingData d3Tracking;
     }
 
@@ -886,22 +887,44 @@ namespace Disguise.RenderStream
     }
 
     [StructLayout(LayoutKind.Explicit)]
-    public /*union*/ struct SenderFrameTypeData
+    public struct SenderFrame
     {
+		[FieldOffset(0)]
+		public SenderFrameType type;
+		/*union*/ 
         // struct HostMemoryData
-        [FieldOffset(0)]
+        [FieldOffset(4)]
         public /*uint8_t**/ IntPtr host_data;
-        [FieldOffset(8)]
+        [FieldOffset(12)]
         public UInt32 host_stride;
         // struct Dx11Data
-        [FieldOffset(0)]
+        [FieldOffset(4)]
         public /*struct ID3D11Resource**/ IntPtr dx11_resource;
         // struct Dx12Data
-        [FieldOffset(0)]
+        [FieldOffset(4)]
         public /*struct ID3D12Resource**/ IntPtr dx12_resource;
         // struct OpenGlData
-        [FieldOffset(0)]
+        [FieldOffset(4)]
         public /*GLuint**/ UInt32 gl_texture;
+		// struct VulkanData
+		[FieldOffset(4)]
+		public /*VkDeviceMemory*/ IntPtr cameraData;
+		[FieldOffset(12)]
+		public /*VkDeviceSize*/ UInt64 size;
+		[FieldOffset(20)]
+		public RSPixelFormat format;
+		[FieldOffset(24)]
+		public UInt32 width;
+		[FieldOffset(28)]
+		public UInt32 height;
+		[FieldOffset(32)]
+		public /*VkSemaphore*/ IntPtr waitSemaphore;
+		[FieldOffset(40)]
+		public UInt64 waitSemaphoreValue;
+		[FieldOffset(48)]
+		public /*VkSemaphore*/ IntPtr signalSemaphore;
+		[FieldOffset(56)]
+		public UInt64 signalSemaphoreValue;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -936,6 +959,9 @@ namespace Disguise.RenderStream
         public UInt32 height;
         public RSPixelFormat format;
         public ProjectionClipping clipping;
+		[MarshalAs(UnmanagedType.LPStr)]
+        public string mappingName;
+		public Int32 iFragment;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -952,6 +978,8 @@ namespace Disguise.RenderStream
         RS_PARAMETER_POSE,      // 4x4 TR matrix
         RS_PARAMETER_TRANSFORM, // 4x4 TRS matrix
         RS_PARAMETER_TEXT,
+		RS_PARAMETER_EVENT,
+		RS_PARAMETER_SKELETON
     }
 
     public enum RemoteParameterDmxType : UInt32
@@ -1035,6 +1063,8 @@ namespace Disguise.RenderStream
         public string engineName;
         [MarshalAs(UnmanagedType.LPStr)]
         public string engineVersion;
+		[MarshalAs(UnmanagedType.LPStr)] 
+        public string pluginVersion;
         [MarshalAs(UnmanagedType.LPStr)]
         public string info;
         public Channels channels;
@@ -1151,13 +1181,13 @@ namespace Disguise.RenderStream
 
         unsafe delegate RS_ERROR pGetFrameParameters(UInt64 schemaHash, /*Out*/ /*void**/ IntPtr outParameterData, UInt64 outParameterDataSize);  // returns the remote parameters for this frame.
         unsafe delegate RS_ERROR pGetFrameImageData(UInt64 schemaHash, /*Out*/ /*ImageFrameData**/ IntPtr outParameterData, UInt64 outParameterDataCount);   // returns the remote image data for this frame.
-        unsafe delegate RS_ERROR pGetFrameImage(Int64 imageId, SenderFrameType frameType, SenderFrameTypeData data); // fills in (data) with the remote image
+        unsafe delegate RS_ERROR pGetFrameImage(Int64 imageId, /*const SenderFrame**/ IntPtr data); // fills in (data) with the remote image
         unsafe delegate RS_ERROR pGetFrameText(UInt64 schemaHash, UInt32 textParamIndex, /*Out*/ /*const char***/ ref IntPtr outTextPtr); // // returns the remote text data (pointer only valid until next rs_awaitFrameData)
 
         unsafe delegate RS_ERROR pGetFrameCamera(StreamHandle streamHandle, /*Out*/ /*CameraData**/ IntPtr outCameraData);  // returns the CameraData for this stream, or RS_ERROR_NOTFOUND if no camera data is available for this stream on this frame
-        unsafe delegate RS_ERROR pSendFrame(StreamHandle streamHandle, SenderFrameType frameType, SenderFrameTypeData data, /*const CameraResponseData**/ IntPtr sendData); // publish a frame buffer which was generated from the associated tracking and timing information.
+        unsafe delegate RS_ERROR pSendFrame(StreamHandle streamHandle, /*SenderFrame**/ IntPtr data, /*const void**/ IntPtr frameData); // publish a frame buffer which was generated from the associated tracking and timing information.
 
-        unsafe delegate RS_ERROR pReleaseImage(SenderFrameType frameType, SenderFrameTypeData data);
+        unsafe delegate RS_ERROR pReleaseImage(/*const SenderFrame**/ IntPtr data);
 
         unsafe delegate RS_ERROR pLogToD3(string str);
         unsafe delegate RS_ERROR pSendProfilingData(/*ProfilingEntry**/ IntPtr entries, int count);
@@ -1313,6 +1343,7 @@ namespace Disguise.RenderStream
                 Schema cSchema = new Schema();
                 cSchema.engineName = "Unity Engine";
                 cSchema.engineVersion = Application.unityVersion;
+				cSchema.pluginVersion = "RS2.0-Unity-Prerelease";
                 cSchema.info = Application.productName;
                 cSchema.channels.nChannels = (UInt32)schema.channels.Length;
                 cSchema.channels.channels = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)cSchema.channels.nChannels);
@@ -1468,18 +1499,44 @@ namespace Disguise.RenderStream
             return res;
         }
 
-        public RS_ERROR sendFrame(StreamHandle streamHandle, SenderFrameType frameType, SenderFrameTypeData data, FrameResponseData sendData)
+        public RS_ERROR sendFrame(StreamHandle streamHandle, ref SenderFrame data, ref FrameResponseData frameData)
         {
             if (m_sendFrame == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
 
             if (handleReference.IsAllocated)
                 handleReference.Free();
-            handleReference = GCHandle.Alloc(sendData, GCHandleType.Pinned);
+            handleReference = GCHandle.Alloc(frameData, GCHandleType.Pinned);
+			
+			if (handleReference2.IsAllocated)
+                handleReference2.Free();
+            handleReference2 = GCHandle.Alloc(data, GCHandleType.Pinned);
             
             try
             {
-                RS_ERROR error = m_sendFrame(streamHandle, frameType, data, handleReference.AddrOfPinnedObject());
+                RS_ERROR error = m_sendFrame(streamHandle, handleReference2.AddrOfPinnedObject(), handleReference.AddrOfPinnedObject());
+                return error;
+            }
+            finally
+            {
+                if (handleReference.IsAllocated)
+                    handleReference.Free();
+            }
+            //return RS_ERROR.RS_ERROR_UNSPECIFIED;
+        }
+		
+		public RS_ERROR getFrameImage(Int64 imageId, ref SenderFrame data)
+        {
+            if (m_getFrameImage == null)
+                return RS_ERROR.RS_NOT_INITIALISED;
+
+            if (handleReference.IsAllocated)
+                handleReference.Free();
+            handleReference = GCHandle.Alloc(data, GCHandleType.Pinned);
+			
+            try
+            {
+                RS_ERROR error = m_getFrameImage(imageId, handleReference.AddrOfPinnedObject());
                 return error;
             }
             finally
@@ -1604,12 +1661,13 @@ namespace Disguise.RenderStream
         {
             if (m_getFrameImage == null)
                 return RS_ERROR.RS_NOT_INITIALISED;
-
+			
             try
             {
-                SenderFrameTypeData data = new SenderFrameTypeData();
+                SenderFrame data = new SenderFrame();
+				data.type = SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE;
                 data.dx11_resource = texture.GetNativeTexturePtr();
-                RS_ERROR error = m_getFrameImage(imageId, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data);
+				RS_ERROR error = PluginEntry.instance.getFrameImage(imageId, ref data);
                 return error;
             }
             finally
@@ -1731,12 +1789,13 @@ namespace Disguise.RenderStream
 
         const string _dllName = "d3renderstream";
 
-        const int RENDER_STREAM_VERSION_MAJOR = 1;
-        const int RENDER_STREAM_VERSION_MINOR = 30;
+        const int RENDER_STREAM_VERSION_MAJOR = 2;
+        const int RENDER_STREAM_VERSION_MINOR = 0;
 
         bool functionsLoaded = false;
         IntPtr d3RenderStreamDLL = IntPtr.Zero;
         GCHandle handleReference; // Everything is run under coroutines with odd lifetimes, so store a reference to GCHandle
+		GCHandle handleReference2;
 
         string name;
 
@@ -1829,13 +1888,13 @@ namespace Disguise.RenderStream
 
             functionsLoaded &= LoadFn(ref m_getFrameParameters, "rs_getFrameParameters");
             functionsLoaded &= LoadFn(ref m_getFrameImageData, "rs_getFrameImageData");
-            functionsLoaded &= LoadFn(ref m_getFrameImage, "rs_getFrameImage");
+            functionsLoaded &= LoadFn(ref m_getFrameImage, "rs_getFrameImage2");
             functionsLoaded &= LoadFn(ref m_getFrameText, "rs_getFrameText");
 
             functionsLoaded &= LoadFn(ref m_getFrameCamera, "rs_getFrameCamera");
-            functionsLoaded &= LoadFn(ref m_sendFrame, "rs_sendFrame");
+            functionsLoaded &= LoadFn(ref m_sendFrame, "rs_sendFrame2");
 
-            functionsLoaded &= LoadFn(ref m_releaseImage, "rs_releaseImage");
+            functionsLoaded &= LoadFn(ref m_releaseImage, "rs_releaseImage2");
 
             functionsLoaded &= LoadFn(ref m_logToD3, "rs_logToD3");
             functionsLoaded &= LoadFn(ref m_sendProfilingData, "rs_sendProfilingData");
@@ -1972,9 +2031,10 @@ namespace Disguise.RenderStream
         {
             unsafe
             {
-                SenderFrameTypeData data = new SenderFrameTypeData();
+                SenderFrame data = new SenderFrame();
+				data.type = SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE;
                 data.dx11_resource = frame.GetNativeTexturePtr();
-                RS_ERROR error = PluginEntry.instance.sendFrame(m_streamHandle, SenderFrameType.RS_FRAMETYPE_DX11_TEXTURE, data, m_responseData);
+                RS_ERROR error = PluginEntry.instance.sendFrame(m_streamHandle, ref data, ref m_responseData);
                 if (error != RS_ERROR.RS_ERROR_SUCCESS)
                     Debug.LogError(string.Format("Error sending frame: {0}", error));
             }
