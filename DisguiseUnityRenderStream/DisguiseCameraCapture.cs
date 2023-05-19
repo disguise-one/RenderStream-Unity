@@ -1343,7 +1343,7 @@ namespace Disguise.RenderStream
                 Schema cSchema = new Schema();
                 cSchema.engineName = "Unity Engine";
                 cSchema.engineVersion = Application.unityVersion;
-				cSchema.pluginVersion = "RS2.0-Unity-Prerelease";
+				cSchema.pluginVersion = "RS2.0-Unity-v0";
                 cSchema.info = Application.productName;
                 cSchema.channels.nChannels = (UInt32)schema.channels.Length;
                 cSchema.channels.channels = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)cSchema.channels.nChannels);
