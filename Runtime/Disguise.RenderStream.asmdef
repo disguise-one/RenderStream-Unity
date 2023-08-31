@@ -1,0 +1,25 @@
+{
+    "name": "Disguise.RenderStream",
+    "rootNamespace": "",
+    "references": [
+        "Disguise.RenderStream.PipelineAbstraction",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.ClusterDisplay.Runtime",
+        "Unity.ClusterDisplay.Runtime.Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.cluster-display",
+            "expression": "0.0.0",
+            "define": "ENABLE_CLUSTER_DISPLAY"
+        }
+    ],
+    "noEngineReferences": false
+}
