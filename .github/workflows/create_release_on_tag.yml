@@ -1,0 +1,42 @@
+name: Create Release On Tag
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine Tag Name
+        id: tagname
+        run: echo "TAG_NAME=${GITHUB_REF/refs\/tags\/}" >> $GITHUB_OUTPUT
+        
+      - name: Create Unity Package
+        id: build_package
+        run: |
+          # Create a zip archive of the repository contents
+          zip -r "${{ steps.tagname.outputs.TAG_NAME }}.zip" .
+
+      - name: Upload Unity Package
+        uses: actions/upload-artifact@v3
+        with:
+          name: unity-package
+          path: ${{ steps.tagname.outputs.TAG_NAME }}.zip
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.tagname.outputs.TAG_NAME }}
+          files: ${{ steps.tagname.outputs.TAG_NAME }}.zip
+          tag_name: ${{ steps.tagname.outputs.TAG_NAME }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
