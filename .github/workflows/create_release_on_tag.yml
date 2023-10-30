@@ -20,8 +20,8 @@ jobs:
       - name: Create Unity Package
         id: build_package
         run: |
-          # Create a zip archive of the repository contents
-          zip -r "${{ steps.tagname.outputs.TAG_NAME }}.zip" .
+          # Create a zip archive of the repository contents, exclude hidden files
+          zip -r "${{ steps.tagname.outputs.TAG_NAME }}.zip" . -x ".*"
 
       - name: Upload Unity Package
         uses: actions/upload-artifact@v3
