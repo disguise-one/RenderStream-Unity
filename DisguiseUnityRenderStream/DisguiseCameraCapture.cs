@@ -989,6 +989,19 @@ namespace Disguise.RenderStream
         RS_DMX_16_BE,
     }
 
+    public enum RSColourSpace : UInt32
+    {
+        RS_COLOUR_SPACE_UNKNOWN,
+        RS_COLOUR_SPACE_sRGBCurve,
+        // All colourspace is linear by default
+        RS_COLOUR_SPACE_sRGB,
+        RS_COLOUR_SPACE_Rec2020,
+        RS_COLOUR_SPACE_ACES2065,
+        RS_COLOUR_SPACE_ACEScg,
+        RS_COLOUR_SPACE_P3D65,
+        RS_COLOUR_SPACE_P3DCI,
+    };
+
     [StructLayout(LayoutKind.Explicit)]
     public /*union*/ struct RemoteParameterTypeDefaults
     {
@@ -1067,6 +1080,7 @@ namespace Disguise.RenderStream
         public string pluginVersion;
         [MarshalAs(UnmanagedType.LPStr)]
         public string info;
+        public RSColourSpace workingColourSpace;
         public Channels channels;
         public Scenes scenes;
     }
@@ -1343,8 +1357,9 @@ namespace Disguise.RenderStream
                 Schema cSchema = new Schema();
                 cSchema.engineName = "Unity Engine";
                 cSchema.engineVersion = Application.unityVersion;
-				cSchema.pluginVersion = "RS2.0-Unity-v0";
+				cSchema.pluginVersion = "RS3.0-Unity-v0";
                 cSchema.info = Application.productName;
+                cSchema.workingColourSpace = RSColourSpace::RS_COLOUR_SPACE_sRGBCurve; // keep legacy behaviour
                 cSchema.channels.nChannels = (UInt32)schema.channels.Length;
                 cSchema.channels.channels = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)cSchema.channels.nChannels);
                 allocations.Add(cSchema.channels.channels);
@@ -1789,7 +1804,7 @@ namespace Disguise.RenderStream
 
         const string _dllName = "d3renderstream";
 
-        const int RENDER_STREAM_VERSION_MAJOR = 2;
+        const int RENDER_STREAM_VERSION_MAJOR = 3;
         const int RENDER_STREAM_VERSION_MINOR = 0;
 
         bool functionsLoaded = false;
