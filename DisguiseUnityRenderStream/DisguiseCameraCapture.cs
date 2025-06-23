@@ -1359,7 +1359,7 @@ namespace Disguise.RenderStream
                 cSchema.engineVersion = Application.unityVersion;
 				cSchema.pluginVersion = "RS3.0-Unity-v0";
                 cSchema.info = Application.productName;
-                cSchema.workingColourSpace = RSColourSpace::RS_COLOUR_SPACE_sRGBCurve; // keep legacy behaviour
+                cSchema.workingColourSpace = RSColourSpace.RS_COLOUR_SPACE_sRGBCurve; // keep legacy behaviour
                 cSchema.channels.nChannels = (UInt32)schema.channels.Length;
                 cSchema.channels.channels = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)) * (int)cSchema.channels.nChannels);
                 allocations.Add(cSchema.channels.channels);
